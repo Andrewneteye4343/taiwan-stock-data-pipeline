@@ -1,0 +1,64 @@
+services:
+
+  postgres:
+    image: postgres:16
+
+    container_name: tw_stock_postgres
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+
+  pipeline:
+    build:
+      context: .
+
+    container_name: tw_stock_pipeline
+
+    depends_on:
+      - postgres
+
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+
+    command: python scripts/run_pipeline.py
+
+
+  dashboard:
+    build:
+      context: .
+
+    container_name: tw_stock_dashboard
+
+    depends_on:
+      - postgres
+
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+
+    ports:
+      - "8501:8501"
+
+    command:
+      streamlit run dashboard/app.py
+      --server.address=0.0.0.0
+      --server.port=8501
+
+
+volumes:
+  postgres_data:
