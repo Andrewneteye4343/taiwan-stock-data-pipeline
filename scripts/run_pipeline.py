@@ -7,6 +7,10 @@ from src.collector.market_data import (
     save_raw_data,
 )
 
+from src.collector.date_range import (
+    get_date_range,
+)
+
 from src.config.stock_config import (
     load_stocks,
 )
@@ -15,6 +19,9 @@ from src.etl.pipeline import (
     run_daily_pipeline,
 )
 
+from src.database.query import (
+    get_latest_trade_date,
+)
 
 def main():
 
@@ -52,50 +59,98 @@ def main():
     # ----------------------------------------
 
     for stock in stocks:
-
+    
         symbol = stock["symbol"]
         name = stock["name"]
 
         print(
-            f"\nCollecting "
+            f"\nProcessing "
             f"{symbol} {name} ..."
         )
 
         try:
 
-            result = client.get_daily_data(
-                symbol=symbol,
-                trade_date=today,
+            # ----------------------------------------
+            # Get latest stored date
+            # ----------------------------------------
+
+            latest_date = get_latest_trade_date(
+                symbol
             )
 
-            # Save original API response
-            save_raw_data(
-                data=result,
-                symbol=symbol,
-                trade_date=today,
-            )
-
-            records = result.get(
-                "data",
-                [],
-            )
-
-            if not records:
+            if latest_date is None:
 
                 print(
-                    f"No trading data found "
-                    f"for {symbol} "
-                    f"on {today}."
+                    f"No historical data found "
+                    f"for {symbol}."
                 )
 
-                continue
+                dates_to_check = [
+                    today
+                ]
 
-            all_data.extend(records)
+            else:
+
+                dates_to_check = get_date_range(
+                    latest_date,
+                    today,
+                )
 
             print(
-                f"Collected "
-                f"{len(records)} record(s)."
+                f"Latest stored date: "
+                f"{latest_date}"
             )
+
+            print(
+                f"Dates to check: "
+                f"{dates_to_check}"
+            )
+
+
+            # ----------------------------------------
+            # Collect missing dates
+            # ----------------------------------------
+
+            for trade_date in dates_to_check:
+
+                print(
+                    f"  Checking "
+                    f"{symbol} "
+                    f"{trade_date} ..."
+                )
+
+                result = client.get_daily_data(
+                    symbol=symbol,
+                    trade_date=trade_date,
+                )
+
+                # Save original API response
+                save_raw_data(
+                    data=result,
+                    symbol=symbol,
+                    trade_date=trade_date,
+                )
+
+                records = result.get(
+                    "data",
+                    [],
+                )
+
+                if not records:
+
+                    print(
+                        f"  No trading data for "
+                        f"{trade_date}."
+                    )
+
+                    continue
+
+                all_data.extend(records)
+
+                print(
+                    f"  Collected "
+                    f"{len(records)} record(s)."
+                )
 
         except Exception as exc:
 
