@@ -101,3 +101,51 @@ ON daily_price(trade_date);
 
 CREATE INDEX IF NOT EXISTS idx_indicators_stock_date
 ON technical_indicators(stock_id, trade_date);
+
+CREATE TABLE IF NOT EXISTS fundamental_data (
+    fundamental_id BIGSERIAL PRIMARY KEY,
+
+    stock_id INTEGER NOT NULL
+        REFERENCES stock_master(stock_id),
+
+    report_year INTEGER NOT NULL,
+    report_quarter INTEGER NOT NULL,
+
+    eps NUMERIC(12, 4),
+    eps_ytd NUMERIC(12, 4),
+    bvps NUMERIC(12, 4),
+    dps NUMERIC(12, 4),
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(stock_id, report_year, report_quarter),
+
+    CHECK (report_quarter IN (1, 2, 3, 4))
+);
+
+
+CREATE TABLE IF NOT EXISTS dividend_data (
+    dividend_id BIGSERIAL PRIMARY KEY,
+
+    stock_id INTEGER NOT NULL
+        REFERENCES stock_master(stock_id),
+
+    dividend_year INTEGER NOT NULL,
+
+    cash_dividend NUMERIC(12, 4),
+
+    ex_dividend_date DATE,
+    payment_date DATE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(stock_id, dividend_year)
+);
+
+CREATE INDEX IF NOT EXISTS idx_fundamental_stock_year
+ON fundamental_data(stock_id, report_year);
+
+CREATE INDEX IF NOT EXISTS idx_dividend_stock_year
+ON dividend_data(stock_id, dividend_year);

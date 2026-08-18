@@ -198,3 +198,254 @@ def load_daily_price(df: pd.DataFrame) -> int:
     )
 
     return processed_count
+
+def load_fundamental_data(df: pd.DataFrame) -> int:
+    """
+    Load fundamental data into PostgreSQL.
+
+    Existing records with the same
+    (stock_id, report_year, report_quarter)
+    will be updated.
+
+    Required columns:
+    - symbol
+    - report_year
+    - report_quarter
+    - eps
+    - eps_ytd
+    - bvps
+    - dps
+
+    Returns
+    -------
+    int
+        Number of processed records.
+    """
+
+    if df.empty:
+        print("No fundamental data to load.")
+        return 0
+
+    required_columns = {
+        "symbol",
+        "report_year",
+        "report_quarter",
+        "eps",
+        "eps_ytd",
+        "bvps",
+        "dps",
+    }
+
+    missing_columns = required_columns - set(df.columns)
+
+    if missing_columns:
+        raise ValueError(
+            f"Missing fundamental data columns: "
+            f"{missing_columns}"
+        )
+
+    upsert_sql = text(
+        """
+        INSERT INTO fundamental_data (
+            stock_id,
+            report_year,
+            report_quarter,
+            eps,
+            eps_ytd,
+            bvps,
+            dps
+        )
+        VALUES (
+            :stock_id,
+            :report_year,
+            :report_quarter,
+            :eps,
+            :eps_ytd,
+            :bvps,
+            :dps
+        )
+        ON CONFLICT (
+            stock_id,
+            report_year,
+            report_quarter
+        )
+        DO UPDATE SET
+            eps = EXCLUDED.eps,
+            eps_ytd = EXCLUDED.eps_ytd,
+            bvps = EXCLUDED.bvps,
+            dps = EXCLUDED.dps,
+            updated_at = CURRENT_TIMESTAMP;
+        """
+    )
+
+    stock_id_sql = text(
+        """
+        SELECT stock_id
+        FROM stock_master
+        WHERE symbol = :symbol;
+        """
+    )
+
+    processed_count = 0
+
+    with engine.begin() as connection:
+
+        for _, row in df.iterrows():
+
+            result = connection.execute(
+                stock_id_sql,
+                {
+                    "symbol": row["symbol"],
+                },
+            )
+
+            stock = result.fetchone()
+
+            if stock is None:
+                raise ValueError(
+                    f"Stock symbol not found: "
+                    f"{row['symbol']}"
+                )
+
+            stock_id = stock.stock_id
+
+            connection.execute(
+                upsert_sql,
+                {
+                    "stock_id": stock_id,
+                    "report_year": row["report_year"],
+                    "report_quarter": row["report_quarter"],
+                    "eps": row["eps"],
+                    "eps_ytd": row["eps_ytd"],
+                    "bvps": row["bvps"],
+                    "dps": row["dps"],
+                },
+            )
+
+            processed_count += 1
+
+    print(
+        f"Successfully processed "
+        f"{processed_count} fundamental records."
+    )
+
+    return processed_count
+
+def load_dividend_data(df: pd.DataFrame) -> int:
+    """
+    Load dividend data into PostgreSQL.
+
+    Existing records with the same
+    (stock_id, dividend_year) will be updated.
+
+    Required columns:
+    - symbol
+    - dividend_year
+    - cash_dividend
+    - ex_dividend_date
+    - payment_date
+
+    Returns
+    -------
+    int
+        Number of processed records.
+    """
+
+    if df.empty:
+        print("No dividend data to load.")
+        return 0
+
+    required_columns = {
+        "symbol",
+        "dividend_year",
+        "cash_dividend",
+        "ex_dividend_date",
+        "payment_date",
+    }
+
+    missing_columns = required_columns - set(df.columns)
+
+    if missing_columns:
+        raise ValueError(
+            f"Missing dividend data columns: "
+            f"{missing_columns}"
+        )
+
+    upsert_sql = text(
+        """
+        INSERT INTO dividend_data (
+            stock_id,
+            dividend_year,
+            cash_dividend,
+            ex_dividend_date,
+            payment_date
+        )
+        VALUES (
+            :stock_id,
+            :dividend_year,
+            :cash_dividend,
+            :ex_dividend_date,
+            :payment_date
+        )
+        ON CONFLICT (
+            stock_id,
+            dividend_year
+        )
+        DO UPDATE SET
+            cash_dividend = EXCLUDED.cash_dividend,
+            ex_dividend_date = EXCLUDED.ex_dividend_date,
+            payment_date = EXCLUDED.payment_date,
+            updated_at = CURRENT_TIMESTAMP;
+        """
+    )
+
+    stock_id_sql = text(
+        """
+        SELECT stock_id
+        FROM stock_master
+        WHERE symbol = :symbol;
+        """
+    )
+
+    processed_count = 0
+
+    with engine.begin() as connection:
+
+        for _, row in df.iterrows():
+
+            result = connection.execute(
+                stock_id_sql,
+                {
+                    "symbol": row["symbol"],
+                },
+            )
+
+            stock = result.fetchone()
+
+            if stock is None:
+                raise ValueError(
+                    f"Stock symbol not found: "
+                    f"{row['symbol']}"
+                )
+
+            stock_id = stock.stock_id
+
+            connection.execute(
+                upsert_sql,
+                {
+                    "stock_id": stock_id,
+                    "dividend_year": row["dividend_year"],
+                    "cash_dividend": row["cash_dividend"],
+                    "ex_dividend_date": row["ex_dividend_date"],
+                    "payment_date": row["payment_date"],
+                },
+            )
+
+            processed_count += 1
+
+    print(
+        f"Successfully processed "
+        f"{processed_count} dividend records."
+    )
+
+    return processed_count
