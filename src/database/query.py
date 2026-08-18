@@ -144,3 +144,62 @@ def get_latest_fundamental_data(
         rows,
         columns=columns,
     )
+
+def get_latest_dividend_data(
+    symbol: str,
+) -> pd.DataFrame:
+    """
+    Get the latest dividend data stored in PostgreSQL
+    for a given stock symbol.
+
+    Parameters
+    ----------
+    symbol : str
+        Stock symbol.
+
+    Returns
+    -------
+    pd.DataFrame
+        Latest dividend record for the stock.
+        Returns an empty DataFrame if no dividend
+        data exists.
+    """
+
+    query = text(
+        """
+        SELECT
+            sm.symbol,
+            dd.dividend_year,
+            dd.cash_dividend,
+            dd.ex_dividend_date,
+            dd.payment_date
+        FROM dividend_data dd
+        JOIN stock_master sm
+            ON dd.stock_id = sm.stock_id
+        WHERE sm.symbol = :symbol
+        ORDER BY dd.dividend_year DESC
+        LIMIT 1;
+        """
+    )
+
+    with engine.connect() as connection:
+
+        result = connection.execute(
+            query,
+            {
+                "symbol": symbol,
+            },
+        )
+
+        rows = result.fetchall()
+
+    return pd.DataFrame(
+        rows,
+        columns=[
+            "symbol",
+            "dividend_year",
+            "cash_dividend",
+            "ex_dividend_date",
+            "payment_date",
+        ],
+    )

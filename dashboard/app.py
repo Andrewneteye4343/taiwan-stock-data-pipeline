@@ -45,14 +45,25 @@ def load_stock_list():
     )
 
 
-stocks = load_stock_list()
+def get_stock_options():
+    stocks = load_stock_list()
+
+    return stocks[
+        ["symbol", "name"]
+    ].to_dict(
+        orient="records"
+    )
+
+stock_options = get_stock_options()
 
 
 selected_stock = st.selectbox(
     "Select Stock",
-    stocks["symbol"].tolist(),
+    [
+        item["symbol"]
+        for item in stock_options
+    ],
 )
-
 
 query = """
     SELECT
@@ -154,3 +165,55 @@ st.dataframe(
     df.tail(30),
     use_container_width=True,
 )
+
+def calculate_price_change(
+    previous_close,
+    current_close,
+):
+    if previous_close == 0:
+        return {
+            "change": None,
+            "change_pct": None,
+        }
+
+    change = current_close - previous_close
+
+    change_pct = (
+        change
+        / previous_close
+        * 100
+    )
+
+    return {
+        "change": change,
+        "change_pct": change_pct,
+    }
+
+def get_latest_price_summary(df):
+    if len(df) < 2:
+        return None
+
+    df = df.sort_values(
+        "trade_date"
+    ).reset_index(
+        drop=True
+    )
+
+    previous = df.iloc[-2]
+    latest = df.iloc[-1]
+
+    price_change = calculate_price_change(
+        previous["close"],
+        latest["close"],
+    )
+
+    return {
+        "trade_date": latest["trade_date"],
+        "open": latest["open"],
+        "high": latest["high"],
+        "low": latest["low"],
+        "close": latest["close"],
+        "volume": latest["volume"],
+        "change": price_change["change"],
+        "change_pct": price_change["change_pct"],
+    }
