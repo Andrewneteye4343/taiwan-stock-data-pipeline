@@ -5,6 +5,12 @@ import streamlit as st
 
 from sqlalchemy import create_engine
 
+from dashboard.components.realtime import (
+    get_refresh_options,
+    load_realtime_quote,
+    normalize_refresh_interval,
+)
+
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL"
@@ -64,6 +70,21 @@ selected_stock = st.selectbox(
         for item in stock_options
     ],
 )
+refresh_options = get_refresh_options()
+
+selected_refresh_label = st.selectbox(
+    "Realtime Refresh",
+    list(refresh_options.keys()),
+    index=1,
+)
+
+refresh_interval = normalize_refresh_interval(
+    refresh_options[selected_refresh_label]
+)
+
+realtime_quote = load_realtime_quote(
+    selected_stock
+)
 
 query = """
     SELECT
@@ -99,6 +120,95 @@ if df.empty:
     )
 
     st.stop()
+
+st.subheader("Realtime Quote")
+
+
+if realtime_quote is None:
+
+    st.warning(
+        "目前無法取得即時行情資料。"
+    )
+
+else:
+    realtime_col1, realtime_col2, realtime_col3, realtime_col4 = (
+        st.columns(4)
+    )
+
+    last_price = realtime_quote["last_price"]
+
+    if last_price is None:
+        realtime_col1.metric(
+            "即時價格",
+            "暫無成交",
+        )
+    else:
+        realtime_col1.metric(
+            "即時價格",
+            f"{last_price:,.2f}",
+        )
+
+    change = realtime_quote["change"]
+change_pct = realtime_quote["change_pct"]
+
+if change is None or change_pct is None:
+    realtime_col2.metric(
+        "漲跌",
+        "暫無資料",
+    )
+else:
+    if change > 0:
+        change_color = "#d60000"
+    elif change < 0:
+        change_color = "#008000"
+    else:
+        change_color = "#666666"
+
+    realtime_col2.markdown(
+        f"""
+        <div>
+            <div style="font-size: 14px;">
+                漲跌
+            </div>
+            <div style="
+                font-size: 28px;
+                font-weight: 600;
+                color: {change_color};
+            ">
+                {change:,.2f}
+            </div>
+            <div style="
+                font-size: 14px;
+                color: {change_color};
+            ">
+                {change_pct:.2f}%
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    volume = realtime_quote["volume"]
+
+    realtime_col3.metric(
+        "成交量",
+        f"{volume:,}" if volume is not None else "暫無資料",
+    )
+
+    realtime_col4.metric(
+        "資料時間",
+        realtime_quote["trade_time"],
+    )
+
+    open_price = realtime_quote["open"]
+    high = realtime_quote["high"]
+    low = realtime_quote["low"]
+
+    st.caption(
+        f"開盤 {open_price:,.2f}　"
+        f"最高 {high:,.2f}　"
+        f"最低 {low:,.2f}"
+    )
 
 
 latest = df.iloc[-1]
