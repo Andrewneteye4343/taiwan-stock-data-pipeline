@@ -1,4 +1,121 @@
-# API 使用與免責聲明
+# Taiwan Stock Data Pipeline
+
+> **Current Version: v1.2.2**
+
+A Taiwan stock market data engineering and analytics platform built with **Python, PostgreSQL, Docker, and Streamlit**.
+
+This project builds an end-to-end pipeline that collects, transforms, validates, stores, analyzes, and visualizes Taiwan stock market data.
+
+The current version supports **historical market data, fundamental data, dividend data, technical indicators, and realtime stock quotes**, with automated testing across the major data-processing and business-logic modules.
+
+---
+
+## 🎯 Project Value
+
+The goal of this project is to build a **modular and extensible stock data pipeline**, rather than simply retrieving stock prices from an API.
+
+```text
+TWSE / Financial Data
+        │
+        ▼
+Data Collection
+        │
+        ▼
+Data Parsing & Validation
+        │
+        ▼
+PostgreSQL Database
+        │
+        ▼
+Business Logic / Indicators
+        │
+        ▼
+Streamlit Dashboard
+```
+
+## 🚀 Key Features
+## 📊 Market Data Pipeline
+
+The project provides a complete workflow for Taiwan stock market data:
+
+Historical daily market data
+Incremental data updates
+PostgreSQL relational database
+Stock Master / Daily Price data model
+Primary Key / Foreign Key / Unique Constraints
+Upsert mechanism to prevent duplicate records
+ETL workflow
+
+## 📈 Fundamental & Dividend Analysis
+
+EPS
+DPS
+P/E Ratio
+P/B Ratio
+Dividend Yield
+Latest fundamental data
+Latest dividend data
+
+Raw financial data and calculation logic are separated into independent service modules, making the analysis logic easier to test and extend.
+
+## 📉 Technical Analysis
+
+The technical analysis layer currently supports:
+
+Price Change
+Price Change %
+Volume Ratio
+Moving Average
+KD
+RSI
+Wilder RSI
+Multiple-window indicators
+
+These indicators are calculated from historical market data and can be integrated into the dashboard layer.
+
+## ⚡Realtime Stock Quote
+
+Starting from v1.2.2, the dashboard integrates realtime stock quotes through the TWSE official API.
+
+Realtime data includes:
+
+Last Price
+Open Price
+High Price
+Low Price
+Previous Close
+Price Change
+Price Change %
+Volume
+Trade Time
+
+The realtime service also implements:
+
+API response parsing
+Data normalization
+Invalid / empty data handling
+HTTP error handling
+Realtime data caching
+Configurable refresh intervals
+
+## 🖥️ Dashboard
+
+The project uses Streamlit to provide a web-based stock dashboard.
+
+Users can select a stock and view:
+
+⚡ Realtime Quote
+📈 Historical Price
+📊 Trading Volume
+💰 Fundamental Data
+📉 Technical Indicators
+🗃️ Raw Data
+
+The dashboard connects the backend data pipeline with the analysis layer and presents the results through an interactive web interface.
+
+---
+
+## API 使用與免責聲明
 
 本專案為**個人學習與技術研究用途**所建立的台灣股票資料整理與分析專案。
 
