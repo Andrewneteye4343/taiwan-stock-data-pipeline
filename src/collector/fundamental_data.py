@@ -50,6 +50,9 @@ def parse_financial_data(
     - operating_income
     - net_income
 
+    Invalid records are skipped instead of
+    terminating the entire pipeline.
+
     Returns
     -------
     pd.DataFrame
@@ -59,47 +62,116 @@ def parse_financial_data(
     records = []
 
     for item in raw_data:
+
+        if not isinstance(item, dict):
+            continue
+
+        symbol = item.get("symbol")
+        report_year = item.get("report_year")
+        report_quarter = item.get("report_quarter")
+
+        # ----------------------------------------------------
+        # Required fields
+        # ----------------------------------------------------
+
+        if not symbol:
+            continue
+
+        if report_year is None:
+            continue
+
+        if report_quarter is None:
+            continue
+
+        try:
+            report_year = int(report_year)
+            report_quarter = int(report_quarter)
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            continue
+
+        # ----------------------------------------------------
+        # Build standardized record
+        # ----------------------------------------------------
+
         records.append(
             {
-                "symbol": str(item["symbol"]),
-                "report_year": int(item["report_year"]),
-                "report_quarter": int(item["report_quarter"]),
-                "eps": _parse_numeric(item.get("eps")),
-                "eps_ytd": _parse_numeric(item.get("eps_ytd")),
-                "bvps": _parse_numeric(item.get("bvps")),
-                "dps": _parse_numeric(item.get("dps")),
-                "revenue": _parse_numeric(item.get("revenue")),
+                "symbol": str(symbol),
+                "report_year": report_year,
+                "report_quarter": report_quarter,
+
+                "eps": _parse_numeric(
+                    item.get("eps")
+                ),
+
+                "eps_ytd": _parse_numeric(
+                    item.get("eps_ytd")
+                ),
+
+                "bvps": _parse_numeric(
+                    item.get("bvps")
+                ),
+
+                "dps": _parse_numeric(
+                    item.get("dps")
+                ),
+
+                "revenue": _parse_numeric(
+                    item.get("revenue")
+                ),
+
                 "gross_profit": _parse_numeric(
                     item.get("gross_profit")
                 ),
+
                 "operating_income": _parse_numeric(
                     item.get("operating_income")
                 ),
+
                 "net_income": _parse_numeric(
                     item.get("net_income")
                 ),
             }
         )
 
+    # --------------------------------------------------------
+    # Return empty DataFrame with correct schema
+    # --------------------------------------------------------
+
+    columns = [
+        "symbol",
+        "report_year",
+        "report_quarter",
+        "eps",
+        "eps_ytd",
+        "bvps",
+        "dps",
+        "revenue",
+        "gross_profit",
+        "operating_income",
+        "net_income",
+    ]
+
+    if not records:
+        return pd.DataFrame(
+            columns=columns
+        )
+
     result = pd.DataFrame(
         records,
-        columns=[
-            "symbol",
-            "report_year",
-            "report_quarter",
-            "eps",
-            "eps_ytd",
-            "bvps",
-            "dps",
-            "revenue",
-            "gross_profit",
-            "operating_income",
-            "net_income",
-        ],
+        columns=columns,
     )
 
+    # --------------------------------------------------------
+    # Remove duplicate stock / quarter records
+    # --------------------------------------------------------
+
     result = (
-        result.sort_values(
+        result
+        .sort_values(
             by=[
                 "symbol",
                 "report_year",
@@ -114,7 +186,9 @@ def parse_financial_data(
             ],
             keep="last",
         )
-        .reset_index(drop=True)
+        .reset_index(
+            drop=True
+        )
     )
 
     return result
