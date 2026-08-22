@@ -4,28 +4,33 @@ stocks:
     name: "台積電"
     market: "TWSE"
     industry: "半導體"
+    type: "stock"
     enabled: true
 
   - symbol: "2317"
     name: "鴻海"
     market: "TWSE"
     industry: "電子製造"
+    type: "stock"
     enabled: true
 
   - symbol: "2454"
     name: "聯發科"
     market: "TWSE"
     industry: "半導體"
+    type: "stock"
     enabled: true
 
   - symbol: "0050"
     name: "元大台灣50"
     market: "TWSE"
     industry: "ETF"
+    type: "etf"
     enabled: true
-  
+
   - symbol: "2881"
     name: "富邦金"
     market: "TWSE"
     industry: "金融"
+    type: "stock"
     enabled: false
