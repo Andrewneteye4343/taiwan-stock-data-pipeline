@@ -8,6 +8,24 @@ This project builds an end-to-end pipeline that collects, transforms, validates,
 
 The current version supports **historical market data, fundamental data, dividend data, technical indicators, and realtime stock quotes**, with automated testing across the major data-processing and business-logic modules.
 
+## Update Market Data
+
+Update the latest stock market data configured in config/stocks.yaml
+
+`.\scripts\update_data.ps1`  
+
+The pipeline will:
+
+* Read stock symbols from config/stocks.yaml
+* Fetch the latest market data from TWSE
+* Validate and transform the data
+* Load the data into PostgreSQL
+* Avoid inserting duplicate records
+
+## Visualize with Dashboard  
+
+Enter web browser with `http://localhost:8501/`
+
 ---
 
 ## 🎯 Project Value
