@@ -227,13 +227,17 @@ def load_fundamental_data(df: pd.DataFrame) -> int:
         return 0
 
     required_columns = {
-        "symbol",
-        "report_year",
-        "report_quarter",
-        "eps",
-        "eps_ytd",
-        "bvps",
-        "dps",
+    "symbol",
+    "report_year",
+    "report_quarter",
+    "eps",
+    "eps_ytd",
+    "bvps",
+    "dps",
+    "revenue",
+    "gross_profit",
+    "operating_income",
+    "net_income",
     }
 
     missing_columns = required_columns - set(df.columns)
@@ -253,7 +257,11 @@ def load_fundamental_data(df: pd.DataFrame) -> int:
             eps,
             eps_ytd,
             bvps,
-            dps
+            dps,
+            revenue,
+            gross_profit,
+            operating_income,
+            net_income
         )
         VALUES (
             :stock_id,
@@ -262,7 +270,11 @@ def load_fundamental_data(df: pd.DataFrame) -> int:
             :eps,
             :eps_ytd,
             :bvps,
-            :dps
+            :dps,
+            :revenue,
+            :gross_profit,
+            :operating_income,
+            :net_income
         )
         ON CONFLICT (
             stock_id,
@@ -274,6 +286,10 @@ def load_fundamental_data(df: pd.DataFrame) -> int:
             eps_ytd = EXCLUDED.eps_ytd,
             bvps = EXCLUDED.bvps,
             dps = EXCLUDED.dps,
+            revenue = EXCLUDED.revenue,
+            gross_profit = EXCLUDED.gross_profit,
+            operating_income = EXCLUDED.operating_income,
+            net_income = EXCLUDED.net_income,
             updated_at = CURRENT_TIMESTAMP;
         """
     )
@@ -319,6 +335,10 @@ def load_fundamental_data(df: pd.DataFrame) -> int:
                     "eps_ytd": row["eps_ytd"],
                     "bvps": row["bvps"],
                     "dps": row["dps"],
+                    "revenue": row["revenue"],
+                    "gross_profit": row["gross_profit"],
+                    "operating_income": row["operating_income"],
+                    "net_income": row["net_income"],
                 },
             )
 

@@ -2,7 +2,6 @@ import os
 
 import pandas as pd
 import streamlit as st
-
 from sqlalchemy import create_engine
 
 from dashboard.components.realtime import (
@@ -11,6 +10,9 @@ from dashboard.components.realtime import (
     normalize_refresh_interval,
 )
 
+from src.services.fundamental_service import (
+    get_fundamental_history,
+)
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL"
@@ -123,6 +125,72 @@ if df.empty:
 
 st.subheader("Realtime Quote")
 
+st.subheader("📊 Quarterly Financials")
+
+fundamental_history = get_fundamental_history(
+    selected_stock
+)
+
+if fundamental_history.empty:
+
+    st.info(
+        "目前沒有財務季報資料。"
+    )
+
+else:
+
+    financial_display = fundamental_history.copy()
+
+    financial_display["quarter"] = (
+        financial_display["report_year"].astype(str)
+        + " Q"
+        + financial_display["report_quarter"].astype(str)
+    )
+
+    financial_display = financial_display[
+        [
+            "quarter",
+            "eps",
+            "eps_ytd",
+            "bvps",
+            "dps",
+        ]
+    ]
+
+    financial_display.columns = [
+        "季度",
+        "EPS",
+        "累計 EPS",
+        "BVPS",
+        "DPS",
+    ]
+
+    st.dataframe(
+        financial_display,
+        use_container_width=True,
+        hide_index=True,
+    )
+
+st.subheader("📈 EPS Trend")
+
+eps_chart_df = fundamental_history.copy()
+
+eps_chart_df["quarter"] = (
+    eps_chart_df["report_year"].astype(str)
+    + " Q"
+    + eps_chart_df["report_quarter"].astype(str)
+)
+
+eps_chart_df = eps_chart_df[
+    [
+        "quarter",
+        "eps",
+    ]
+].set_index("quarter")
+
+st.line_chart(
+    eps_chart_df["eps"]
+)
 
 if realtime_quote is None:
 

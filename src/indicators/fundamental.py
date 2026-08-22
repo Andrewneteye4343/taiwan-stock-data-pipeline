@@ -7,20 +7,21 @@ def calculate_pe(
     """
     Calculate price-to-earnings ratio (PE).
 
-    PE is calculated as:
-
-        PE = close / EPS
+    PE = close / EPS
 
     Only positive EPS values produce a valid PE.
-    EPS values that are zero or negative are treated
-    as invalid and result in NaN.
     """
 
     result = df.copy()
 
     result["pe"] = pd.NA
 
-    valid_eps = result["eps"] > 0
+    valid_eps = (
+        result["eps"].notna()
+        & (result["eps"] > 0)
+        & result["close"].notna()
+        & (result["close"] > 0)
+    )
 
     result.loc[valid_eps, "pe"] = (
         result.loc[valid_eps, "close"]
@@ -41,34 +42,21 @@ def calculate_pb(
     """
     Calculate price-to-book ratio (PB).
 
-    PB is calculated as:
-
-        PB = close / BVPS
+    PB = close / BVPS
 
     Only positive BVPS values produce a valid PB.
-    BVPS values that are zero or negative are treated
-    as invalid and result in NaN.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Stock price and fundamental data.
-
-        Required columns:
-        - close
-        - bvps
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with an additional pb column.
     """
 
     result = df.copy()
 
     result["pb"] = pd.NA
 
-    valid_bvps = result["bvps"] > 0
+    valid_bvps = (
+        result["bvps"].notna()
+        & (result["bvps"] > 0)
+        & result["close"].notna()
+        & (result["close"] > 0)
+    )
 
     result.loc[valid_bvps, "pb"] = (
         result.loc[valid_bvps, "close"]
@@ -82,47 +70,29 @@ def calculate_pb(
 
     return result
 
+
 def calculate_dividend_yield(
     df: pd.DataFrame,
 ) -> pd.DataFrame:
     """
     Calculate dividend yield.
 
-    Dividend yield is calculated as:
-
-        Dividend Yield = DPS / Close * 100
-
-    Only positive close prices produce a valid
-    dividend yield.
-
-    DPS equal to zero is valid and produces
-    a dividend yield of zero.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Stock price and fundamental data.
-
-        Required columns:
-        - close
-        - dps
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with an additional
-        dividend_yield column.
+    Dividend Yield = DPS / Close * 100
     """
 
     result = df.copy()
 
     result["dividend_yield"] = pd.NA
 
-    valid_close = result["close"] > 0
+    valid_data = (
+        result["dps"].notna()
+        & result["close"].notna()
+        & (result["close"] > 0)
+    )
 
-    result.loc[valid_close, "dividend_yield"] = (
-        result.loc[valid_close, "dps"]
-        / result.loc[valid_close, "close"]
+    result.loc[valid_data, "dividend_yield"] = (
+        result.loc[valid_data, "dps"]
+        / result.loc[valid_data, "close"]
         * 100
     )
 
@@ -133,35 +103,119 @@ def calculate_dividend_yield(
 
     return result
 
+
+def calculate_gross_margin(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Calculate gross profit margin.
+
+    Gross Margin = gross_profit / revenue * 100
+    """
+
+    result = df.copy()
+
+    result["gross_margin"] = pd.NA
+
+    valid_data = (
+        result["revenue"].notna()
+        & (result["revenue"] != 0)
+        & result["gross_profit"].notna()
+    )
+
+    result.loc[valid_data, "gross_margin"] = (
+        result.loc[valid_data, "gross_profit"]
+        / result.loc[valid_data, "revenue"]
+        * 100
+    )
+
+    result["gross_margin"] = pd.to_numeric(
+        result["gross_margin"],
+        errors="coerce",
+    )
+
+    return result
+
+
+def calculate_operating_margin(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Calculate operating profit margin.
+
+    Operating Margin = operating_income / revenue * 100
+    """
+
+    result = df.copy()
+
+    result["operating_margin"] = pd.NA
+
+    valid_data = (
+        result["revenue"].notna()
+        & (result["revenue"] != 0)
+        & result["operating_income"].notna()
+    )
+
+    result.loc[valid_data, "operating_margin"] = (
+        result.loc[valid_data, "operating_income"]
+        / result.loc[valid_data, "revenue"]
+        * 100
+    )
+
+    result["operating_margin"] = pd.to_numeric(
+        result["operating_margin"],
+        errors="coerce",
+    )
+
+    return result
+
+
+def calculate_net_margin(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Calculate net profit margin.
+
+    Net Margin = net_income / revenue * 100
+    """
+
+    result = df.copy()
+
+    result["net_margin"] = pd.NA
+
+    valid_data = (
+        result["revenue"].notna()
+        & (result["revenue"] != 0)
+        & result["net_income"].notna()
+    )
+
+    result.loc[valid_data, "net_margin"] = (
+        result.loc[valid_data, "net_income"]
+        / result.loc[valid_data, "revenue"]
+        * 100
+    )
+
+    result["net_margin"] = pd.to_numeric(
+        result["net_margin"],
+        errors="coerce",
+    )
+
+    return result
+
+
 def calculate_fundamentals(
     df: pd.DataFrame,
 ) -> pd.DataFrame:
     """
     Calculate all supported fundamental indicators.
 
-    Currently supported indicators:
+    Supported indicators:
     - PE
     - PB
     - Dividend Yield
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Stock price and fundamental data.
-
-        Required columns:
-        - close
-        - eps
-        - bvps
-        - dps
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing:
-        - pe
-        - pb
-        - dividend_yield
+    - Gross Margin
+    - Operating Margin
+    - Net Margin
     """
 
     result = df.copy()
@@ -171,5 +225,11 @@ def calculate_fundamentals(
     result = calculate_pb(result)
 
     result = calculate_dividend_yield(result)
+
+    result = calculate_gross_margin(result)
+
+    result = calculate_operating_margin(result)
+
+    result = calculate_net_margin(result)
 
     return result

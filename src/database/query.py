@@ -60,18 +60,14 @@ def get_latest_fundamental_data(
     The returned data contains:
     - latest trading price
     - latest fundamental report
-    - DPS from fundamental_data
-
-    Parameters
-    ----------
-    symbol : str
-        Stock symbol.
-
-    Returns
-    -------
-    pd.DataFrame
-        One-row DataFrame containing the latest
-        price and fundamental data.
+    - EPS
+    - EPS YTD
+    - BVPS
+    - DPS
+    - revenue
+    - gross profit
+    - operating income
+    - net income
     """
 
     query = text(
@@ -97,7 +93,11 @@ def get_latest_fundamental_data(
                 fd.eps,
                 fd.eps_ytd,
                 fd.bvps,
-                fd.dps
+                fd.dps,
+                fd.revenue,
+                fd.gross_profit,
+                fd.operating_income,
+                fd.net_income
             FROM fundamental_data fd
             JOIN stock_master sm
                 ON fd.stock_id = sm.stock_id
@@ -110,20 +110,90 @@ def get_latest_fundamental_data(
 
         SELECT
             sm.symbol,
+            sm.name,
+
             lp.trade_date,
             lp.close,
+
             lf.report_year,
             lf.report_quarter,
+
             lf.eps,
             lf.eps_ytd,
             lf.bvps,
-            lf.dps
+            lf.dps,
+
+            lf.revenue,
+            lf.gross_profit,
+            lf.operating_income,
+            lf.net_income
+
         FROM stock_master sm
+
         JOIN latest_price lp
             ON sm.stock_id = lp.stock_id
+
         JOIN latest_fundamental lf
             ON sm.stock_id = lf.stock_id
+
         WHERE sm.symbol = :symbol;
+        """
+    )
+
+    with engine.connect() as connection:
+
+        result = connection.execute(
+            query,
+            {
+                "symbol": symbol,
+            },
+        )
+
+        rows = result.fetchall()
+
+        columns = result.keys()
+
+    return pd.DataFrame(
+        rows,
+        columns=columns,
+    )
+
+def get_fundamental_history(
+    symbol: str,
+) -> pd.DataFrame:
+    """
+    Get historical quarterly fundamental data
+    for a given stock symbol.
+    """
+
+    query = text(
+        """
+        SELECT
+            sm.symbol,
+            sm.name,
+            fd.report_year,
+            fd.report_quarter,
+
+            fd.eps,
+            fd.eps_ytd,
+            fd.bvps,
+            fd.dps,
+
+            fd.revenue,
+            fd.gross_profit,
+            fd.operating_income,
+            fd.net_income
+
+        FROM fundamental_data fd
+
+        JOIN stock_master sm
+            ON fd.stock_id = sm.stock_id
+
+        WHERE sm.symbol = :symbol
+
+        ORDER BY
+            fd.report_year DESC,
+            fd.report_quarter DESC;
         """
     )
 

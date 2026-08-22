@@ -1,6 +1,7 @@
 import pandas as pd
 
 from src.database.query import (
+    get_fundamental_history as query_fundamental_history,
     get_latest_dividend_data,
     get_latest_fundamental_data,
 )
@@ -42,3 +43,23 @@ def calculate_latest_fundamentals(
     result = calculate_fundamentals(result)
 
     return result
+
+def get_fundamental_history(
+    symbol: str,
+) -> pd.DataFrame:
+    """
+    Get historical quarterly fundamental data
+    for a given stock symbol.
+
+    Parameters
+    ----------
+    symbol : str
+        Stock symbol.
+
+    Returns
+    -------
+    pd.DataFrame
+        Historical quarterly fundamental data.
+    """
+
+    return query_fundamental_history(symbol)

@@ -3,6 +3,7 @@ import pytest
 
 from src.services.fundamental_service import (
     calculate_latest_fundamentals,
+    get_fundamental_history,
 )
 
 
@@ -58,3 +59,50 @@ def test_calculate_latest_fundamentals_values():
         float(row["dps"]) / float(row["close"]) * 100,
         rel=1e-6,
     )
+
+def test_get_fundamental_history():
+    result = get_fundamental_history("2330")
+
+    assert isinstance(result, pd.DataFrame)
+
+    assert not result.empty
+
+    expected_columns = {
+        "symbol",
+        "name",
+        "report_year",
+        "report_quarter",
+        "eps",
+        "eps_ytd",
+        "bvps",
+        "dps",
+    }
+
+    assert expected_columns.issubset(
+        result.columns
+    )
+
+def test_get_fundamental_history_unknown_symbol():
+    result = get_fundamental_history("9999")
+
+    assert isinstance(result, pd.DataFrame)
+
+    assert result.empty
+
+def test_get_fundamental_history_sorted():
+    result = get_fundamental_history("2330")
+
+    assert isinstance(result, pd.DataFrame)
+
+    if len(result) >= 2:
+        periods = list(
+            zip(
+                result["report_year"],
+                result["report_quarter"],
+            )
+        )
+
+        assert periods == sorted(
+            periods,
+            reverse=True,
+        )
