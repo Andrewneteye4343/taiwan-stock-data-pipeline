@@ -1,14 +1,11 @@
 from datetime import date
 
-import pandas as pd
-
 from src.collector.market_data import (
     MarketDataClient,
-    save_raw_data,
 )
 
-from src.collector.date_range import (
-    get_date_range,
+from src.collector.market_pipeline import (
+    collect_stock_data,
 )
 
 from src.config.stock_config import (
@@ -19,9 +16,86 @@ from src.etl.pipeline import (
     run_daily_pipeline,
 )
 
-from src.database.query import (
-    get_latest_trade_date,
+from src.etl.market_transform import (
+    prepare_market_data,
 )
+
+def print_summary(
+    stocks,
+    successful_symbols,
+    no_data_symbols,
+    failed_symbols,
+    collected_count,
+    processed_count,
+):
+    """
+    Print market data pipeline summary.
+    """
+
+    print()
+    print(
+        "========================================"
+    )
+    print(
+        "TWSE Market Data Pipeline Summary"
+    )
+    print(
+        "========================================"
+    )
+
+    print(
+        f"Total stocks: {len(stocks)}"
+    )
+
+    print(
+        f"Successful stocks: "
+        f"{len(successful_symbols)}"
+    )
+
+    if no_data_symbols:
+
+        print(
+            "No new data stocks: "
+            f"{', '.join(no_data_symbols)}"
+        )
+
+    else:
+
+        print(
+            "No new data stocks: 0"
+        )
+
+    if failed_symbols:
+
+        print(
+            "Failed stocks: "
+            f"{', '.join(failed_symbols)}"
+        )
+
+    else:
+
+        print(
+            "Failed stocks: 0"
+        )
+
+    print(
+        f"Collected records: "
+        f"{collected_count}"
+    )
+
+    print(
+        f"Processed records: "
+        f"{processed_count}"
+    )
+
+    print(
+        "Pipeline execution completed."
+    )
+
+    print(
+        "========================================"
+    )
+
 
 def main():
 
@@ -32,17 +106,28 @@ def main():
     # ----------------------------------------
 
     stocks = load_stocks()
-    stocks = [
-    stock
-    for stock in stocks
-    if stock.get("enabled", True)
-    ]   
 
-    print("========================================")
-    print("TWSE Market Data Collection")
-    print(f"Trade date: {today}")
-    print(f"Configured stocks: {len(stocks)}")
-    print("========================================")
+    stocks = [
+        stock
+        for stock in stocks
+        if stock.get("enabled", True)
+    ]
+
+    print(
+        "========================================"
+    )
+    print(
+        "TWSE Market Data Collection"
+    )
+    print(
+        f"Trade date: {today}"
+    )
+    print(
+        f"Configured stocks: {len(stocks)}"
+    )
+    print(
+        "========================================"
+    )
 
     # ----------------------------------------
     # Initialize API client
@@ -52,116 +137,57 @@ def main():
         timeout=30,
     )
 
+    # ----------------------------------------
+    # Collection statistics
+    # ----------------------------------------
+
     all_data = []
+
+    successful_symbols = []
+
+    no_data_symbols = []
+
+    failed_symbols = []
 
     # ----------------------------------------
     # Extract
     # ----------------------------------------
 
     for stock in stocks:
-    
-        symbol = stock["symbol"]
-        name = stock["name"]
 
-        print(
-            f"\nProcessing "
-            f"{symbol} {name} ..."
+        symbol = stock["symbol"]
+
+        records, status = collect_stock_data(
+            stock=stock,
+            client=client,
+            today=today,
         )
 
-        try:
+        all_data.extend(records)
 
-            # ----------------------------------------
-            # Get latest stored date
-            # ----------------------------------------
+        if status == "success":
 
-            latest_date = get_latest_trade_date(
+            successful_symbols.append(
                 symbol
             )
 
-            if latest_date is None:
+        elif status == "no_new_data":
 
-                print(
-                    f"No historical data found "
-                    f"for {symbol}."
-                )
-
-                dates_to_check = [
-                    today
-                ]
-
-            else:
-
-                dates_to_check = get_date_range(
-                    latest_date,
-                    today,
-                )
-
-            print(
-                f"Latest stored date: "
-                f"{latest_date}"
+            no_data_symbols.append(
+                symbol
             )
 
-            print(
-                f"Dates to check: "
-                f"{dates_to_check}"
-            )
+        elif status == "failed":
 
-
-            # ----------------------------------------
-            # Collect missing dates
-            # ----------------------------------------
-
-            for trade_date in dates_to_check:
-
-                print(
-                    f"  Checking "
-                    f"{symbol} "
-                    f"{trade_date} ..."
-                )
-
-                result = client.get_daily_data(
-                    symbol=symbol,
-                    trade_date=trade_date,
-                )
-
-                # Save original API response
-                save_raw_data(
-                    data=result,
-                    symbol=symbol,
-                    trade_date=trade_date,
-                )
-
-                records = result.get(
-                    "data",
-                    [],
-                )
-
-                if not records:
-
-                    print(
-                        f"  No trading data for "
-                        f"{trade_date}."
-                    )
-
-                    continue
-
-                all_data.extend(records)
-
-                print(
-                    f"  Collected "
-                    f"{len(records)} record(s)."
-                )
-
-        except Exception as exc:
-
-            print(
-                f"Failed to collect "
-                f"{symbol}: {exc}"
+            failed_symbols.append(
+                symbol
             )
 
     # ----------------------------------------
-    # No data
+    # Collection result
     # ----------------------------------------
+
+    collected_count = len(all_data)
 
     if not all_data:
 
@@ -169,30 +195,29 @@ def main():
             "\nNo market data collected."
         )
 
+        print_summary(
+            stocks=stocks,
+            successful_symbols=successful_symbols,
+            no_data_symbols=no_data_symbols,
+            failed_symbols=failed_symbols,
+            collected_count=collected_count,
+            processed_count=0,
+        )
+
         return
 
     # ----------------------------------------
-    # DataFrame
+    # Transform
     # ----------------------------------------
-    stock_metadata = pd.DataFrame(stocks)
 
-    df = pd.DataFrame(
-        all_data
+    df = prepare_market_data(
+        records=all_data,
+        stocks=stocks,
     )
 
-    df = df.merge(
-        stock_metadata[
-            [
-                "symbol",
-                "market",
-                "industry",
-            ]
-        ],
-        on="symbol",
-        how="left",
-        )
-
-    print("\nCollected Data:")
+    print(
+        "\nCollected Data:"
+    )
 
     print(
         df.to_string(
@@ -203,28 +228,27 @@ def main():
     print(
         f"\nTotal records: {len(df)}"
     )
+    
 
     # ----------------------------------------
     # ETL Pipeline
     # ----------------------------------------
 
-    processed_count = run_daily_pipeline(df)
-
-    print(
-        "\n========================================"
+    processed_count = (
+        run_daily_pipeline(df)
     )
 
-    print(
-        "Pipeline execution completed."
-    )
+    # ----------------------------------------
+    # Summary
+    # ----------------------------------------
 
-    print(
-        f"Processed: "
-        f"{processed_count} records"
-    )
-
-    print(
-        "========================================"
+    print_summary(
+        stocks=stocks,
+        successful_symbols=successful_symbols,
+        no_data_symbols=no_data_symbols,
+        failed_symbols=failed_symbols,
+        collected_count=collected_count,
+        processed_count=processed_count,
     )
 
 

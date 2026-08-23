@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from src.indicators.technical import (
     calculate_price_change,
@@ -155,14 +156,11 @@ def test_moving_average_insufficient_data():
 def test_moving_average_invalid_window():
     df = create_ma_test_data()
 
-    try:
+    with pytest.raises(ValueError):
         calculate_moving_average(
             df,
             window=0,
         )
-        assert False
-    except ValueError:
-        assert True
 
 def test_moving_averages():
     df = create_test_data()
@@ -391,14 +389,11 @@ def test_rsi_insufficient_data():
 def test_rsi_invalid_window():
     df = create_rsi_test_data()
 
-    try:
+    with pytest.raises(ValueError):
         calculate_rsi(
             df,
             window=0,
         )
-        assert False
-    except ValueError:
-        assert True
 
 def test_rsis():
     df = create_rsi_test_data()

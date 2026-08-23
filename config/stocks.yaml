@@ -10,7 +10,7 @@ stocks:
   - symbol: "2317"
     name: "鴻海"
     market: "TWSE"
-    industry: "電子製造"
+    industry: "電子零組件"
     type: "stock"
     enabled: true
 
@@ -21,6 +21,41 @@ stocks:
     type: "stock"
     enabled: true
 
+  - symbol: "2382"
+    name: "廣達"
+    market: "TWSE"
+    industry: "電腦及週邊設備"
+    type: "stock"
+    enabled: true
+
+  - symbol: "2412"
+    name: "中華電"
+    market: "TWSE"
+    industry: "通信網路"
+    type: "stock"
+    enabled: true
+
+  - symbol: "2881"
+    name: "富邦金"
+    market: "TWSE"
+    industry: "金融保險"
+    type: "stock"
+    enabled: true
+
+  - symbol: "2603"
+    name: "長榮"
+    market: "TWSE"
+    industry: "航運"
+    type: "stock"
+    enabled: true
+
+  - symbol: "1216"
+    name: "統一"
+    market: "TWSE"
+    industry: "食品"
+    type: "stock"
+    enabled: true
+
   - symbol: "0050"
     name: "元大台灣50"
     market: "TWSE"
@@ -28,9 +63,23 @@ stocks:
     type: "etf"
     enabled: true
 
-  - symbol: "2881"
-    name: "富邦金"
+  - symbol: "0056"
+    name: "元大高股息"
     market: "TWSE"
-    industry: "金融"
-    type: "stock"
-    enabled: false
+    industry: "ETF"
+    type: "etf"
+    enabled: true
+
+  - symbol: "00878"
+    name: "國泰永續高股息"
+    market: "TWSE"
+    industry: "ETF"
+    type: "etf"
+    enabled: true
+
+  - symbol: "006208"
+    name: "富邦台50"
+    market: "TWSE"
+    industry: "ETF"
+    type: "etf"
+    enabled: true
