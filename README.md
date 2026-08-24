@@ -1,6 +1,6 @@
 # Taiwan Stock Data Pipeline
 
-> **Current Version: v1.3.0**
+> **Current Version: v1.3.4**
 
 A Taiwan stock market data engineering and analytics platform built with **Python, PostgreSQL, Docker, and Streamlit**.
 
