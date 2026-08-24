@@ -1,15 +1,50 @@
+import os
+
 import pytest
 
+from sqlalchemy import create_engine
 from sqlalchemy import text
-
-from src.database.connection import engine
 
 
 @pytest.fixture
-def stock_without_fundamental():
+def test_engine():
+    """
+    Create a SQLAlchemy engine for the test database.
+
+    The test database URL is provided through
+    TEST_DATABASE_URL.
+    """
+
+    database_url = os.getenv("TEST_DATABASE_URL")
+
+    if not database_url:
+        raise RuntimeError(
+            "TEST_DATABASE_URL is not configured"
+        )
+
+    engine = create_engine(
+        database_url,
+        pool_pre_ping=True,
+    )
+
+    yield engine
+
+    engine.dispose()
+
+
+@pytest.fixture
+def stock_without_fundamental(test_engine):
+    """
+    Create a test stock with daily price data
+    but without fundamental data.
+
+    The test data is created in stock_test_db
+    through TEST_DATABASE_URL.
+    """
+
     symbol = "9998"
 
-    with engine.begin() as connection:
+    with test_engine.begin() as connection:
 
         # --------------------------------------------------
         # Cleanup previous test data
@@ -119,7 +154,7 @@ def stock_without_fundamental():
     # Cleanup after test
     # ------------------------------------------------------
 
-    with engine.begin() as connection:
+    with test_engine.begin() as connection:
 
         connection.execute(
             text(

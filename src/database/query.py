@@ -7,7 +7,10 @@ from sqlalchemy import text
 from src.database.connection import engine
 
 
-def get_latest_trade_date(symbol: str) -> date | None:
+def get_latest_trade_date(
+    symbol: str,
+    db_engine=None,
+) -> date | None:
     """
     Get the latest trade date stored in PostgreSQL
     for a given stock symbol.
@@ -17,12 +20,20 @@ def get_latest_trade_date(symbol: str) -> date | None:
     symbol : str
         Stock symbol.
 
+    db_engine : SQLAlchemy Engine, optional
+        Database engine to use.
+        If not provided, the default production engine
+        is used.
+
     Returns
     -------
     date | None
         Latest stored trade date.
         Returns None if no price data exists.
     """
+
+    if db_engine is None:
+        db_engine = engine
 
     query = text(
         """
@@ -34,7 +45,7 @@ def get_latest_trade_date(symbol: str) -> date | None:
         """
     )
 
-    with engine.connect() as connection:
+    with db_engine.connect() as connection:
 
         result = connection.execute(
             query,
@@ -50,12 +61,24 @@ def get_latest_trade_date(symbol: str) -> date | None:
 
     return row.latest_trade_date
 
+
 def get_latest_fundamental_data(
     symbol: str,
+    db_engine=None,
 ) -> pd.DataFrame:
     """
     Get the latest price and fundamental data
     for a given stock symbol.
+
+    Parameters
+    ----------
+    symbol : str
+        Stock symbol.
+
+    db_engine : SQLAlchemy Engine, optional
+        Database engine to use.
+        If not provided, the default production engine
+        is used.
 
     The returned data contains:
     - latest trading price
@@ -65,6 +88,9 @@ def get_latest_fundamental_data(
     - BVPS
     - DPS
     """
+
+    if db_engine is None:
+        db_engine = engine
 
     query = text(
         """
@@ -130,7 +156,7 @@ def get_latest_fundamental_data(
         """
     )
 
-    with engine.connect() as connection:
+    with db_engine.connect() as connection:
 
         result = connection.execute(
             query,
@@ -148,13 +174,33 @@ def get_latest_fundamental_data(
         columns=columns,
     )
 
+
 def get_fundamental_history(
     symbol: str,
+    db_engine=None,
 ) -> pd.DataFrame:
     """
     Get historical quarterly fundamental data
     for a given stock symbol.
+
+    Parameters
+    ----------
+    symbol : str
+        Stock symbol.
+
+    db_engine : SQLAlchemy Engine, optional
+        Database engine to use.
+        If not provided, the default production engine
+        is used.
+
+    Returns
+    -------
+    pd.DataFrame
+        Historical quarterly fundamental data.
     """
+
+    if db_engine is None:
+        db_engine = engine
 
     query = text(
         """
@@ -187,7 +233,7 @@ def get_fundamental_history(
         """
     )
 
-    with engine.connect() as connection:
+    with db_engine.connect() as connection:
 
         result = connection.execute(
             query,
@@ -205,8 +251,10 @@ def get_fundamental_history(
         columns=columns,
     )
 
+
 def get_latest_dividend_data(
     symbol: str,
+    db_engine=None,
 ) -> pd.DataFrame:
     """
     Get the latest dividend data stored in PostgreSQL
@@ -217,6 +265,11 @@ def get_latest_dividend_data(
     symbol : str
         Stock symbol.
 
+    db_engine : SQLAlchemy Engine, optional
+        Database engine to use.
+        If not provided, the default production engine
+        is used.
+
     Returns
     -------
     pd.DataFrame
@@ -224,6 +277,9 @@ def get_latest_dividend_data(
         Returns an empty DataFrame if no dividend
         data exists.
     """
+
+    if db_engine is None:
+        db_engine = engine
 
     query = text(
         """
@@ -242,7 +298,7 @@ def get_latest_dividend_data(
         """
     )
 
-    with engine.connect() as connection:
+    with db_engine.connect() as connection:
 
         result = connection.execute(
             query,
@@ -253,13 +309,9 @@ def get_latest_dividend_data(
 
         rows = result.fetchall()
 
+        columns = result.keys()
+
     return pd.DataFrame(
         rows,
-        columns=[
-            "symbol",
-            "dividend_year",
-            "cash_dividend",
-            "ex_dividend_date",
-            "payment_date",
-        ],
+        columns=columns,
     )
