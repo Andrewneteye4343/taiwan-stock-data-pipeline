@@ -29,8 +29,12 @@ def test_calculate_latest_fundamentals_unknown_symbol():
     assert result.empty
 
 
-def test_calculate_latest_fundamentals_without_fundamental_record():
-    result = calculate_latest_fundamentals("2317")
+def test_calculate_latest_fundamentals_without_fundamental_record(
+    stock_without_fundamental,
+):
+    result = calculate_latest_fundamentals(
+        stock_without_fundamental
+    )
 
     assert isinstance(result, pd.DataFrame)
     assert result.empty

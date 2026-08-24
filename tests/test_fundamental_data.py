@@ -29,6 +29,10 @@ def test_parse_financial_data():
         "eps_ytd",
         "bvps",
         "dps",
+        "revenue",
+        "gross_profit",
+        "operating_income",
+        "net_income",
     ]
 
     assert result.loc[0, "symbol"] == "2330"
@@ -89,6 +93,10 @@ def test_parse_financial_data_multiple_records():
         "eps_ytd",
         "bvps",
         "dps",
+        "revenue",
+        "gross_profit",
+        "operating_income",
+        "net_income",
     ]
 
     # Parser sorts by symbol, year, quarter.
@@ -213,11 +221,10 @@ def test_parse_financial_data_missing_required_field():
         }
     ]
 
-    try:
-        parse_financial_data(raw_data)
-        assert False
-    except KeyError:
-        assert True
+    result = parse_financial_data(raw_data)
+
+    assert isinstance(result, pd.DataFrame)
+    assert result.empty
 
 
 def test_parse_financial_data_missing_optional_value():

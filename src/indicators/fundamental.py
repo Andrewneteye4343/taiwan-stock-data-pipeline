@@ -207,15 +207,12 @@ def calculate_fundamentals(
     df: pd.DataFrame,
 ) -> pd.DataFrame:
     """
-    Calculate all supported fundamental indicators.
+    Calculate core fundamental indicators.
 
     Supported indicators:
     - PE
     - PB
     - Dividend Yield
-    - Gross Margin
-    - Operating Margin
-    - Net Margin
     """
 
     result = df.copy()
@@ -225,11 +222,5 @@ def calculate_fundamentals(
     result = calculate_pb(result)
 
     result = calculate_dividend_yield(result)
-
-    result = calculate_gross_margin(result)
-
-    result = calculate_operating_margin(result)
-
-    result = calculate_net_margin(result)
 
     return result

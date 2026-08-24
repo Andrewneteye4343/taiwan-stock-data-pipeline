@@ -32,8 +32,12 @@ def test_get_latest_fundamental_data_unknown_symbol():
     assert isinstance(result, pd.DataFrame)
     assert result.empty
 
-def test_get_latest_fundamental_data_without_fundamental_record():
-    result = get_latest_fundamental_data("2317")
+def test_get_latest_fundamental_data_without_fundamental_record(
+    stock_without_fundamental,
+):
+    result = get_latest_fundamental_data(
+        stock_without_fundamental
+    )
 
     assert isinstance(result, pd.DataFrame)
     assert result.empty

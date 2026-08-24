@@ -64,10 +64,6 @@ def get_latest_fundamental_data(
     - EPS YTD
     - BVPS
     - DPS
-    - revenue
-    - gross profit
-    - operating income
-    - net income
     """
 
     query = text(
@@ -110,7 +106,6 @@ def get_latest_fundamental_data(
 
         SELECT
             sm.symbol,
-            sm.name,
 
             lp.trade_date,
             lp.close,
@@ -121,12 +116,7 @@ def get_latest_fundamental_data(
             lf.eps,
             lf.eps_ytd,
             lf.bvps,
-            lf.dps,
-
-            lf.revenue,
-            lf.gross_profit,
-            lf.operating_income,
-            lf.net_income
+            lf.dps
 
         FROM stock_master sm
 

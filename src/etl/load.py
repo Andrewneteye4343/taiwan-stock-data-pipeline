@@ -227,17 +227,13 @@ def load_fundamental_data(df: pd.DataFrame) -> int:
         return 0
 
     required_columns = {
-    "symbol",
-    "report_year",
-    "report_quarter",
-    "eps",
-    "eps_ytd",
-    "bvps",
-    "dps",
-    "revenue",
-    "gross_profit",
-    "operating_income",
-    "net_income",
+        "symbol",
+        "report_year",
+        "report_quarter",
+        "eps",
+        "eps_ytd",
+        "bvps",
+        "dps",
     }
 
     missing_columns = required_columns - set(df.columns)
@@ -335,10 +331,10 @@ def load_fundamental_data(df: pd.DataFrame) -> int:
                     "eps_ytd": row["eps_ytd"],
                     "bvps": row["bvps"],
                     "dps": row["dps"],
-                    "revenue": row["revenue"],
-                    "gross_profit": row["gross_profit"],
-                    "operating_income": row["operating_income"],
-                    "net_income": row["net_income"],
+                    "revenue": row.get("revenue"),
+                    "gross_profit": row.get("gross_profit"),
+                    "operating_income": row.get("operating_income"),
+                    "net_income": row.get("net_income"),
                 },
             )
 
