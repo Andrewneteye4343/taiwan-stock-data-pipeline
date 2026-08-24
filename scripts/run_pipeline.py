@@ -20,6 +20,15 @@ from src.etl.market_transform import (
     prepare_market_data,
 )
 
+from src.monitoring.pipeline_logger import (
+    start_pipeline_log,
+    complete_pipeline_log,
+)
+
+
+PIPELINE_NAME = "daily_stock"
+
+
 def print_summary(
     stocks,
     successful_symbols,
@@ -97,103 +106,172 @@ def print_summary(
     )
 
 
-def main():
+def main(db_engine=None):
 
     today = date.today()
 
     # ----------------------------------------
-    # Load stock configuration
+    # Start pipeline execution log
     # ----------------------------------------
 
-    stocks = load_stocks()
-
-    stocks = [
-        stock
-        for stock in stocks
-        if stock.get("enabled", True)
-    ]
-
-    print(
-        "========================================"
-    )
-    print(
-        "TWSE Market Data Collection"
-    )
-    print(
-        f"Trade date: {today}"
-    )
-    print(
-        f"Configured stocks: {len(stocks)}"
-    )
-    print(
-        "========================================"
+    log_id = start_pipeline_log(
+        pipeline_name=PIPELINE_NAME,
+        db_engine=db_engine,
     )
 
-    # ----------------------------------------
-    # Initialize API client
-    # ----------------------------------------
+    processed_count = 0
 
-    client = MarketDataClient(
-        timeout=30,
-    )
+    try:
 
-    # ----------------------------------------
-    # Collection statistics
-    # ----------------------------------------
+        # ----------------------------------------
+        # Load stock configuration
+        # ----------------------------------------
 
-    all_data = []
+        stocks = load_stocks()
 
-    successful_symbols = []
-
-    no_data_symbols = []
-
-    failed_symbols = []
-
-    # ----------------------------------------
-    # Extract
-    # ----------------------------------------
-
-    for stock in stocks:
-
-        symbol = stock["symbol"]
-
-        records, status = collect_stock_data(
-            stock=stock,
-            client=client,
-            today=today,
-        )
-
-        all_data.extend(records)
-
-        if status == "success":
-
-            successful_symbols.append(
-                symbol
-            )
-
-        elif status == "no_new_data":
-
-            no_data_symbols.append(
-                symbol
-            )
-
-        elif status == "failed":
-
-            failed_symbols.append(
-                symbol
-            )
-
-    # ----------------------------------------
-    # Collection result
-    # ----------------------------------------
-
-    collected_count = len(all_data)
-
-    if not all_data:
+        stocks = [
+            stock
+            for stock in stocks
+            if stock.get("enabled", True)
+        ]
 
         print(
-            "\nNo market data collected."
+            "========================================"
         )
+        print(
+            "TWSE Market Data Collection"
+        )
+        print(
+            f"Trade date: {today}"
+        )
+        print(
+            f"Configured stocks: {len(stocks)}"
+        )
+        print(
+            "========================================"
+        )
+
+        # ----------------------------------------
+        # Initialize API client
+        # ----------------------------------------
+
+        client = MarketDataClient(
+            timeout=30,
+        )
+
+        # ----------------------------------------
+        # Collection statistics
+        # ----------------------------------------
+
+        all_data = []
+
+        successful_symbols = []
+
+        no_data_symbols = []
+
+        failed_symbols = []
+
+        # ----------------------------------------
+        # Extract
+        # ----------------------------------------
+
+        for stock in stocks:
+
+            symbol = stock["symbol"]
+
+            records, status = collect_stock_data(
+                stock=stock,
+                client=client,
+                today=today,
+            )
+
+            all_data.extend(records)
+
+            if status == "success":
+
+                successful_symbols.append(
+                    symbol
+                )
+
+            elif status == "no_new_data":
+
+                no_data_symbols.append(
+                    symbol
+                )
+
+            elif status == "failed":
+
+                failed_symbols.append(
+                    symbol
+                )
+
+        # ----------------------------------------
+        # Collection result
+        # ----------------------------------------
+
+        collected_count = len(all_data)
+
+        if not all_data:
+
+            print(
+                "\nNo market data collected."
+            )
+
+            print_summary(
+                stocks=stocks,
+                successful_symbols=successful_symbols,
+                no_data_symbols=no_data_symbols,
+                failed_symbols=failed_symbols,
+                collected_count=collected_count,
+                processed_count=0,
+            )
+
+            complete_pipeline_log(
+                log_id=log_id,
+                status="NO_DATA",
+                records_processed=0,
+                db_engine=db_engine,
+            )
+
+            return
+
+        # ----------------------------------------
+        # Transform
+        # ----------------------------------------
+
+        df = prepare_market_data(
+            records=all_data,
+            stocks=stocks,
+        )
+
+        print(
+            "\nCollected Data:"
+        )
+
+        print(
+            df.to_string(
+                index=False
+            )
+        )
+
+        print(
+            f"\nTotal records: {len(df)}"
+        )
+
+        # ----------------------------------------
+        # ETL Pipeline
+        # ----------------------------------------
+
+        processed_count = (
+            run_daily_pipeline(
+                df,
+                db_engine=db_engine,
+            )
+        )
+
+        # ----------------------------------------
+        # Summary
+        # ----------------------------------------
 
         print_summary(
             stocks=stocks,
@@ -201,55 +279,61 @@ def main():
             no_data_symbols=no_data_symbols,
             failed_symbols=failed_symbols,
             collected_count=collected_count,
-            processed_count=0,
+            processed_count=processed_count,
         )
 
-        return
+        # ----------------------------------------
+        # Complete pipeline log
+        # ----------------------------------------
 
-    # ----------------------------------------
-    # Transform
-    # ----------------------------------------
-
-    df = prepare_market_data(
-        records=all_data,
-        stocks=stocks,
-    )
-
-    print(
-        "\nCollected Data:"
-    )
-
-    print(
-        df.to_string(
-            index=False
+        complete_pipeline_log(
+            log_id=log_id,
+            status="SUCCESS",
+            records_processed=processed_count,
+            db_engine=db_engine,
         )
-    )
 
-    print(
-        f"\nTotal records: {len(df)}"
-    )
-    
+    except Exception as exc:
 
-    # ----------------------------------------
-    # ETL Pipeline
-    # ----------------------------------------
+        # ----------------------------------------
+        # Record pipeline failure
+        # ----------------------------------------
 
-    processed_count = (
-        run_daily_pipeline(df)
-    )
+        error_message = str(exc)
 
-    # ----------------------------------------
-    # Summary
-    # ----------------------------------------
+        try:
 
-    print_summary(
-        stocks=stocks,
-        successful_symbols=successful_symbols,
-        no_data_symbols=no_data_symbols,
-        failed_symbols=failed_symbols,
-        collected_count=collected_count,
-        processed_count=processed_count,
-    )
+            complete_pipeline_log(
+                log_id=log_id,
+                status="FAILED",
+                records_processed=processed_count,
+                error_message=error_message,
+                db_engine=db_engine,
+            )
+
+        except Exception as log_exc:
+
+            print(
+                "\nFailed to update pipeline log:"
+            )
+
+            print(
+                str(log_exc)
+            )
+
+        # ----------------------------------------
+        # Preserve original pipeline failure
+        # ----------------------------------------
+
+        print(
+            "\nPipeline execution failed:"
+        )
+
+        print(
+            error_message
+        )
+
+        raise
 
 
 if __name__ == "__main__":

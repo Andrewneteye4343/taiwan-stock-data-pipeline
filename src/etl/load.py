@@ -4,17 +4,33 @@ from sqlalchemy import text
 from src.database.connection import engine
 
 
-def load_stock_master(df: pd.DataFrame) -> int:
+def load_stock_master(
+    df: pd.DataFrame,
+    db_engine=None,
+) -> int:
     """
     Insert new stocks into stock_master.
 
     Existing stocks will not be modified.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Stock data.
+
+    db_engine : SQLAlchemy Engine, optional
+        Database engine to use.
+        If not provided, the production engine
+        is used.
 
     Returns
     -------
     int
         Number of newly inserted stocks.
     """
+
+    if db_engine is None:
+        db_engine = engine
 
     if df.empty:
         return 0
@@ -68,7 +84,7 @@ def load_stock_master(df: pd.DataFrame) -> int:
 
     inserted_count = 0
 
-    with engine.begin() as connection:
+    with db_engine.begin() as connection:
 
         for _, row in stocks.iterrows():
 
@@ -92,18 +108,34 @@ def load_stock_master(df: pd.DataFrame) -> int:
     return inserted_count
 
 
-def load_daily_price(df: pd.DataFrame) -> int:
+def load_daily_price(
+    df: pd.DataFrame,
+    db_engine=None,
+) -> int:
     """
     Load daily stock price data into PostgreSQL.
 
     Existing records with the same
     (stock_id, trade_date) will be updated.
 
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Daily stock price data.
+
+    db_engine : SQLAlchemy Engine, optional
+        Database engine to use.
+        If not provided, the production engine
+        is used.
+
     Returns
     -------
     int
         Number of processed records.
     """
+
+    if db_engine is None:
+        db_engine = engine
 
     if df.empty:
         print("No data to load.")
@@ -155,7 +187,7 @@ def load_daily_price(df: pd.DataFrame) -> int:
 
     processed_count = 0
 
-    with engine.begin() as connection:
+    with db_engine.begin() as connection:
 
         for _, row in df.iterrows():
 
@@ -199,7 +231,11 @@ def load_daily_price(df: pd.DataFrame) -> int:
 
     return processed_count
 
-def load_fundamental_data(df: pd.DataFrame) -> int:
+
+def load_fundamental_data(
+    df: pd.DataFrame,
+    db_engine=None,
+) -> int:
     """
     Load fundamental data into PostgreSQL.
 
@@ -207,20 +243,24 @@ def load_fundamental_data(df: pd.DataFrame) -> int:
     (stock_id, report_year, report_quarter)
     will be updated.
 
-    Required columns:
-    - symbol
-    - report_year
-    - report_quarter
-    - eps
-    - eps_ytd
-    - bvps
-    - dps
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Fundamental data.
+
+    db_engine : SQLAlchemy Engine, optional
+        Database engine to use.
+        If not provided, the production engine
+        is used.
 
     Returns
     -------
     int
         Number of processed records.
     """
+
+    if db_engine is None:
+        db_engine = engine
 
     if df.empty:
         print("No fundamental data to load.")
@@ -300,7 +340,7 @@ def load_fundamental_data(df: pd.DataFrame) -> int:
 
     processed_count = 0
 
-    with engine.begin() as connection:
+    with db_engine.begin() as connection:
 
         for _, row in df.iterrows():
 
@@ -347,25 +387,35 @@ def load_fundamental_data(df: pd.DataFrame) -> int:
 
     return processed_count
 
-def load_dividend_data(df: pd.DataFrame) -> int:
+
+def load_dividend_data(
+    df: pd.DataFrame,
+    db_engine=None,
+) -> int:
     """
     Load dividend data into PostgreSQL.
 
     Existing records with the same
     (stock_id, dividend_year) will be updated.
 
-    Required columns:
-    - symbol
-    - dividend_year
-    - cash_dividend
-    - ex_dividend_date
-    - payment_date
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Dividend data.
+
+    db_engine : SQLAlchemy Engine, optional
+        Database engine to use.
+        If not provided, the production engine
+        is used.
 
     Returns
     -------
     int
         Number of processed records.
     """
+
+    if db_engine is None:
+        db_engine = engine
 
     if df.empty:
         print("No dividend data to load.")
@@ -425,7 +475,7 @@ def load_dividend_data(df: pd.DataFrame) -> int:
 
     processed_count = 0
 
-    with engine.begin() as connection:
+    with db_engine.begin() as connection:
 
         for _, row in df.iterrows():
 

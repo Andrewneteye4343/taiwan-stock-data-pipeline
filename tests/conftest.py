@@ -193,3 +193,148 @@ def stock_without_fundamental(test_engine):
             ),
             {"symbol": symbol},
         )
+
+@pytest.fixture
+def pipeline_test_stock(test_engine):
+    """
+    Create a test stock for pipeline integration tests.
+
+    The fixture uses the test database provided by
+    TEST_DATABASE_URL.
+
+    The test stock is automatically removed after
+    the test completes.
+    """
+
+    symbol = "9997"
+
+    with test_engine.begin() as connection:
+
+        # --------------------------------------------------
+        # Cleanup previous test data
+        # --------------------------------------------------
+
+        connection.execute(
+            text(
+                """
+                DELETE FROM dividend_data
+                WHERE stock_id IN (
+                    SELECT stock_id
+                    FROM stock_master
+                    WHERE symbol = :symbol
+                );
+                """
+            ),
+            {"symbol": symbol},
+        )
+
+        connection.execute(
+            text(
+                """
+                DELETE FROM fundamental_data
+                WHERE stock_id IN (
+                    SELECT stock_id
+                    FROM stock_master
+                    WHERE symbol = :symbol
+                );
+                """
+            ),
+            {"symbol": symbol},
+        )
+
+        connection.execute(
+            text(
+                """
+                DELETE FROM daily_price
+                WHERE stock_id IN (
+                    SELECT stock_id
+                    FROM stock_master
+                    WHERE symbol = :symbol
+                );
+                """
+            ),
+            {"symbol": symbol},
+        )
+
+        connection.execute(
+            text(
+                """
+                DELETE FROM stock_master
+                WHERE symbol = :symbol;
+                """
+            ),
+            {"symbol": symbol},
+        )
+
+    # --------------------------------------------------
+    # Test stock configuration
+    # --------------------------------------------------
+
+    stock = {
+        "symbol": symbol,
+        "name": "測試成功股票",
+        "market": "TWSE",
+        "industry": "測試業",
+        "enabled": True,
+    }
+
+    # Return stock configuration to the test
+    yield stock
+
+    # --------------------------------------------------
+    # Cleanup after test
+    # --------------------------------------------------
+
+    with test_engine.begin() as connection:
+
+        connection.execute(
+            text(
+                """
+                DELETE FROM dividend_data
+                WHERE stock_id IN (
+                    SELECT stock_id
+                    FROM stock_master
+                    WHERE symbol = :symbol
+                );
+                """
+            ),
+            {"symbol": symbol},
+        )
+
+        connection.execute(
+            text(
+                """
+                DELETE FROM fundamental_data
+                WHERE stock_id IN (
+                    SELECT stock_id
+                    FROM stock_master
+                    WHERE symbol = :symbol
+                );
+                """
+            ),
+            {"symbol": symbol},
+        )
+
+        connection.execute(
+            text(
+                """
+                DELETE FROM daily_price
+                WHERE stock_id IN (
+                    SELECT stock_id
+                    FROM stock_master
+                    WHERE symbol = :symbol
+                );
+                """
+            ),
+            {"symbol": symbol},
+        )
+
+        connection.execute(
+            text(
+                """
+                DELETE FROM stock_master
+                WHERE symbol = :symbol;
+                """
+            ),
+            {"symbol": symbol},
+        )

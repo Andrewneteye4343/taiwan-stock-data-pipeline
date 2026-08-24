@@ -10,7 +10,26 @@ from src.etl.load import (
 
 def run_daily_pipeline(
     df: pd.DataFrame,
+    db_engine=None,
 ) -> int:
+    """
+    Run the daily stock price ETL pipeline.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Raw market data.
+
+    db_engine : SQLAlchemy Engine, optional
+        Database engine to use.
+        If not provided, the production engine
+        is used by the downstream loaders.
+
+    Returns
+    -------
+    int
+        Number of processed daily price records.
+    """
 
     print(
         "========================================"
@@ -56,7 +75,10 @@ def run_daily_pipeline(
         "\n[3/4] Synchronizing stock master..."
     )
 
-    load_stock_master(df)
+    load_stock_master(
+        df,
+        db_engine=db_engine,
+    )
 
     # ----------------------------------------
     # Daily Price
@@ -66,7 +88,10 @@ def run_daily_pipeline(
         "\n[4/4] Loading daily prices..."
     )
 
-    processed_count = load_daily_price(df)
+    processed_count = load_daily_price(
+        df,
+        db_engine=db_engine,
+    )
 
     print(
         "\n========================================"
