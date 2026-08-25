@@ -1,0 +1,8 @@
+market:
+  timezone: "Asia/Taipei"
+
+  weekend:
+    - "Saturday"
+    - "Sunday"
+
+  holidays: []

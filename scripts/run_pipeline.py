@@ -1,4 +1,4 @@
-from datetime import date
+from src.core.market_time import today as market_today
 
 from src.collector.market_data import (
     MarketDataClient,
@@ -108,7 +108,7 @@ def print_summary(
 
 def main(db_engine=None):
 
-    today = date.today()
+    trade_date = market_today()
 
     # ----------------------------------------
     # Start pipeline execution log
@@ -142,7 +142,7 @@ def main(db_engine=None):
             "TWSE Market Data Collection"
         )
         print(
-            f"Trade date: {today}"
+            f"Trade date: {trade_date}"
         )
         print(
             f"Configured stocks: {len(stocks)}"
@@ -182,7 +182,7 @@ def main(db_engine=None):
             records, status = collect_stock_data(
                 stock=stock,
                 client=client,
-                today=today,
+                today=trade_date,
             )
 
             all_data.extend(records)

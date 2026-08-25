@@ -338,3 +338,39 @@ def pipeline_test_stock(test_engine):
             ),
             {"symbol": symbol},
         )
+
+@pytest.fixture
+def scheduler_test_dependencies(
+    monkeypatch,
+):
+    """
+    Provide mocked dependencies for scheduler unit tests.
+
+    The real pipeline and time.sleep are replaced so that
+    scheduler tests do not execute the production pipeline
+    or wait for real time.
+    """
+
+    pipeline_calls = []
+    sleep_calls = []
+
+    def mock_pipeline():
+        pipeline_calls.append(True)
+
+    def mock_sleep(seconds):
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr(
+        "scheduler.scheduler.main",
+        mock_pipeline,
+    )
+
+    monkeypatch.setattr(
+        "scheduler.scheduler.time.sleep",
+        mock_sleep,
+    )
+
+    return {
+        "pipeline_calls": pipeline_calls,
+        "sleep_calls": sleep_calls,
+    }
