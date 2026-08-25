@@ -10,6 +10,7 @@ COPY src ./src
 COPY scripts ./scripts
 COPY dashboard ./dashboard
 COPY config ./config
+COPY scheduler ./scheduler
 COPY tests ./tests
 
 RUN mkdir -p /app/data/raw

@@ -30,7 +30,10 @@ def calculate_realtime_price_change(
             "change_pct": None,
         }
 
-    change = last_price - previous_close
+    change = round(
+        last_price - previous_close,
+        4,
+    )
 
     change_pct = (
         change
