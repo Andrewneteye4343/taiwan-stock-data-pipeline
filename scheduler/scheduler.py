@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import time
+from datetime import time as dt_time
 from pathlib import Path
 
 import yaml
@@ -10,7 +11,10 @@ from src.core.market_session import (
     get_market_session,
 )
 
-from src.core.market_time import today
+from src.core.market_time import (
+    now,
+    today,
+)
 
 CONFIG_PATH = (
     Path(__file__).resolve().parent.parent
@@ -57,6 +61,10 @@ def load_scheduler_config():
         "realtime_interval_seconds"
     )
 
+    daily_pipeline_time = scheduler_config.get(
+        "daily_pipeline_time"
+    )
+
     if interval_seconds is None:
         raise ValueError(
             "Missing 'realtime_interval_seconds' "
@@ -79,9 +87,48 @@ def load_scheduler_config():
             "a positive integer"
         )
 
+    if daily_pipeline_time is None:
+        raise ValueError(
+            "Missing 'daily_pipeline_time' "
+            "configuration"
+        )
+
+    if not isinstance(
+        daily_pipeline_time,
+        str,
+    ):
+        raise ValueError(
+            "'daily_pipeline_time' must be "
+            "a string in HH:MM format"
+        )
+
+    try:
+
+        hour, minute = (
+            int(value)
+            for value in daily_pipeline_time.split(":")
+        )
+
+        parsed_daily_pipeline_time = dt_time(
+            hour,
+            minute,
+        )
+
+    except (
+        ValueError,
+        TypeError,
+    ):
+
+        raise ValueError(
+            "'daily_pipeline_time' must be "
+            "in HH:MM format"
+        )
+
     return {
         "realtime_interval_seconds": interval_seconds,
+        "daily_pipeline_time": parsed_daily_pipeline_time,
     }
+
 
 
 def run_daily_pipeline():
@@ -248,6 +295,10 @@ def main():
         "realtime_interval_seconds"
     ]
 
+    daily_pipeline_time = config[
+        "daily_pipeline_time"
+    ]
+    
     print(
         "========================================"
     )
@@ -301,8 +352,17 @@ def main():
             wait_seconds = realtime_interval
 
         elif session == MarketSession.POST_CLOSE:
+    
+            current_datetime = now()
 
-            if (
+            if current_datetime.time() < daily_pipeline_time:
+
+                print(
+                    "Waiting for daily pipeline time: "
+                    f"{daily_pipeline_time.strftime('%H:%M')}"
+                )
+
+            elif (
                 post_close_completed_date
                 != current_date
             ):

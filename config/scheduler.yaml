@@ -1,2 +1,3 @@
 scheduler:
   realtime_interval_seconds: 60
+  daily_pipeline_time: "14:00"
