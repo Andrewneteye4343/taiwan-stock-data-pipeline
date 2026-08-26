@@ -185,12 +185,29 @@ def run_realtime_update():
 
                 continue
 
+            previous_trade_price = quote.get(
+                "previous_trade_price"
+            )
+            change = quote.get("change")
+            change_pct = quote.get("change_pct")
+
+            if change_pct is None:
+                change_pct_text = "N/A"
+            else:
+                change_pct_text = f"{change_pct:.2f}%"
+
+            if change is None:
+                change_text = "N/A"
+            else:
+                change_text = str(change)
+
             print(
                 f"{symbol} {name}: "
-                f"{quote['last_price']} "
-                f"({quote['change']}, "
-                f"{quote['change_pct']:.2f}%)"
+                f"{previous_trade_price} "
+                f"({change_text}, "
+                f"{change_pct_text})"
             )
+
 
             successful += 1
 

@@ -238,10 +238,6 @@ latest_trade_date = latest["trade_date"].strftime(
     "%Y-%m-%d"
 )
 
-st.caption(
-    f"最新交易日：{latest_trade_date}"
-)
-
 
 # ============================================================
 # 1. Realtime Quote
@@ -261,6 +257,15 @@ if realtime_quote is None:
 
 else:
 
+    realtime_trade_date = realtime_quote.get(
+        "trade_date"
+    )
+
+    if realtime_trade_date is not None:
+        st.caption(
+            f"即時行情交易日：{realtime_trade_date}"
+        )
+
     realtime_col1, realtime_col2, realtime_col3, realtime_col4 = (
         st.columns(4)
     )
@@ -269,19 +274,19 @@ else:
     # Current price
     # --------------------------------------------------------
 
-    last_price = realtime_quote.get(
-        "last_price"
+    previous_trade_price = realtime_quote.get(
+        "previous_trade_price"
     )
 
-    if last_price is None:
+    if previous_trade_price is None:
         realtime_col1.metric(
-            "即時價格",
-            "暫無成交",
+            "上筆資料交易價格",
+            "暫無成交資料",
         )
     else:
         realtime_col1.metric(
-            "即時價格",
-            f"{last_price:,.2f}",
+            "上筆資料交易價格",
+            f"{previous_trade_price:,.2f}",
         )
 
     # --------------------------------------------------------
@@ -378,6 +383,9 @@ else:
 # ============================================================
 
 st.subheader("3️⃣ 最新歷史行情")
+st.caption(
+    f"歷史資料日期：{latest_trade_date}"
+)
 
 price_col1, price_col2, price_col3, price_col4 = (
     st.columns(4)
@@ -406,12 +414,6 @@ price_col4.metric(
     "最低價",
     f"{latest['low']:,.2f}",
 )
-
-
-st.caption(
-    f"資料日期：{latest_trade_date}"
-)
-
 
 # ============================================================
 # 3. Price chart

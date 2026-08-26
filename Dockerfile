@@ -16,5 +16,6 @@ COPY tests ./tests
 RUN mkdir -p /app/data/raw
 
 ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8501

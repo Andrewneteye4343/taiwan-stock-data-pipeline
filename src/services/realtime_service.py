@@ -5,11 +5,15 @@ TWSE_REALTIME_URL = (
     "https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
 )
 
+_LAST_TRANSACTION_PRICE = {}
+
+
 def _to_int(value):
     if value in (None, "", "-"):
         return None
 
     return int(value)
+
 
 def _to_float(value):
     if value in (None, "", "-", "--"):
@@ -19,6 +23,7 @@ def _to_float(value):
         return float(value)
     except (TypeError, ValueError):
         return None
+
 
 def calculate_realtime_price_change(
     last_price,
@@ -45,6 +50,7 @@ def calculate_realtime_price_change(
         "change": change,
         "change_pct": change_pct,
     }
+
 
 def parse_realtime_quote(
     payload: dict,
@@ -84,7 +90,38 @@ def parse_realtime_quote(
     high = _to_float(data.get("h"))
     low = _to_float(data.get("l"))
     previous_close = _to_float(data.get("y"))
-    last_price = _to_float(data.get("z"))
+
+    transaction_price = _to_float(
+        data.get("z")
+    )
+
+    # --------------------------------------------------
+    # Transaction price cache
+    #
+    # TWSE may return "-" in z when there is no newly
+    # matched transaction. In that case, use the latest
+    # transaction price only when it belongs to the same
+    # trading date.
+    # --------------------------------------------------
+
+    if transaction_price is not None:
+
+        _LAST_TRANSACTION_PRICE[symbol] = {
+            "trade_date": trade_date,
+            "price": transaction_price,
+        }
+
+    else:
+
+        cached_price = _LAST_TRANSACTION_PRICE.get(
+            symbol
+        )
+
+        if (
+            cached_price is not None
+            and cached_price["trade_date"] == trade_date
+        ):
+            transaction_price = cached_price["price"]
 
     volume_raw = data.get("v")
 
@@ -93,12 +130,15 @@ def parse_realtime_quote(
     else:
         volume = int(volume_raw)
 
-    if last_price is None:
+    if transaction_price is None:
+
         change = None
         change_pct = None
+
     else:
+
         price_change = calculate_realtime_price_change(
-            last_price,
+            transaction_price,
             previous_close,
         )
 
@@ -110,7 +150,7 @@ def parse_realtime_quote(
         "name": name,
         "trade_date": trade_date,
         "trade_time": trade_time,
-        "last_price": last_price,
+        "previous_trade_price": transaction_price,
         "open": open_price,
         "high": high,
         "low": low,
@@ -119,6 +159,7 @@ def parse_realtime_quote(
         "change_pct": change_pct,
         "volume": volume,
     }
+
 
 def fetch_realtime_quote(
     symbol: str,
@@ -136,12 +177,15 @@ def fetch_realtime_quote(
     dict | None
         Normalized realtime quote.
     """
+
     if symbol is None:
         raise ValueError("symbol cannot be empty")
+
     symbol = str(symbol).strip()
 
     if not symbol:
         raise ValueError("symbol cannot be empty")
+
     params = {
         "ex_ch": f"tse_{symbol}.tw",
         "json": "1",
