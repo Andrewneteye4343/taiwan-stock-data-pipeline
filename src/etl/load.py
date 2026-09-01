@@ -4,6 +4,115 @@ from sqlalchemy import text
 from src.database.connection import engine
 
 
+def _load_records(
+    df: pd.DataFrame,
+    symbol_column: str,
+    upsert_sql: str,
+    bind_params,
+    db_engine=None,
+) -> int:
+    """
+    Batch upsert records with a single symbol lookup.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Data to load. Must contain symbol_column.
+
+    symbol_column : str
+        Column name holding the stock symbol.
+
+    upsert_sql : str
+        SQL with :stock_id and data bind parameters.
+
+    bind_params : callable
+        Function (row) -> dict of SQL bind parameters
+        (without stock_id, which is added here).
+
+    Returns
+    -------
+    int
+        Number of processed records.
+    """
+
+    if db_engine is None:
+        db_engine = engine
+
+    if df.empty:
+        return 0
+
+    symbols = (
+        df[symbol_column]
+        .drop_duplicates()
+        .tolist()
+    )
+
+    # ---------------------------------------------------------
+    # 一次查詢所有 stock_id（取代逐列查詢的 N+1 模式）
+    # ---------------------------------------------------------
+
+    stock_id_sql = text(
+        """
+        SELECT stock_id, symbol
+        FROM stock_master
+        WHERE symbol = ANY(:symbols);
+        """
+    )
+
+    with db_engine.connect() as connection:
+
+        result = connection.execute(
+            stock_id_sql,
+            {"symbols": symbols},
+        )
+
+        stock_id_map = {
+            row.symbol: row.stock_id
+            for row in result.fetchall()
+        }
+
+    # ---------------------------------------------------------
+    # 驗證所有 symbol 都存在
+    # ---------------------------------------------------------
+
+    for symbol in symbols:
+
+        if symbol not in stock_id_map:
+
+            raise ValueError(
+                f"Stock symbol not found: {symbol}"
+            )
+
+    # ---------------------------------------------------------
+    # 批次 upsert
+    # ---------------------------------------------------------
+
+    upsert = text(upsert_sql)
+
+    processed_count = 0
+
+    with db_engine.begin() as connection:
+
+        params = [
+            {
+                **bind_params(row),
+                "stock_id": stock_id_map[
+                    row[symbol_column]
+                ],
+            }
+            for _, row in df.iterrows()
+        ]
+
+        connection.execute(
+            upsert,
+            params,
+        )
+
+        processed_count = len(params)
+
+    return processed_count
+
+
 def load_stock_master(
     df: pd.DataFrame,
     db_engine=None,
@@ -12,16 +121,6 @@ def load_stock_master(
     Insert new stocks into stock_master.
 
     Existing stocks will not be modified.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Stock data.
-
-    db_engine : SQLAlchemy Engine, optional
-        Database engine to use.
-        If not provided, the production engine
-        is used.
 
     Returns
     -------
@@ -86,19 +185,20 @@ def load_stock_master(
 
     with db_engine.begin() as connection:
 
-        for _, row in stocks.iterrows():
-
-            result = connection.execute(
-                insert_sql,
+        result = connection.execute(
+            insert_sql,
+            [
                 {
                     "symbol": row["symbol"],
                     "name": row["name"],
                     "market": row["market"],
                     "industry": row["industry"],
-                },
-            )
+                }
+                for _, row in stocks.iterrows()
+            ],
+        )
 
-            inserted_count += result.rowcount
+        inserted_count = result.rowcount
 
     print(
         f"Stock master synchronized: "
@@ -118,16 +218,6 @@ def load_daily_price(
     Existing records with the same
     (stock_id, trade_date) will be updated.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Daily stock price data.
-
-    db_engine : SQLAlchemy Engine, optional
-        Database engine to use.
-        If not provided, the production engine
-        is used.
-
     Returns
     -------
     int
@@ -141,8 +231,7 @@ def load_daily_price(
         print("No data to load.")
         return 0
 
-    upsert_sql = text(
-        """
+    upsert_sql = """
         INSERT INTO daily_price (
             stock_id,
             trade_date,
@@ -174,55 +263,27 @@ def load_daily_price(
             close = EXCLUDED.close,
             volume = EXCLUDED.volume,
             turnover = EXCLUDED.turnover;
-        """
+    """
+
+    def bind_params(row):
+
+        return {
+            "trade_date": row["trade_date"],
+            "open": row["open"],
+            "high": row["high"],
+            "low": row["low"],
+            "close": row["close"],
+            "volume": row["volume"],
+            "turnover": row["turnover"],
+        }
+
+    processed_count = _load_records(
+        df=df,
+        symbol_column="symbol",
+        upsert_sql=upsert_sql,
+        bind_params=bind_params,
+        db_engine=db_engine,
     )
-
-    stock_id_sql = text(
-        """
-        SELECT stock_id
-        FROM stock_master
-        WHERE symbol = :symbol;
-        """
-    )
-
-    processed_count = 0
-
-    with db_engine.begin() as connection:
-
-        for _, row in df.iterrows():
-
-            result = connection.execute(
-                stock_id_sql,
-                {
-                    "symbol": row["symbol"],
-                },
-            )
-
-            stock = result.fetchone()
-
-            if stock is None:
-                raise ValueError(
-                    f"Stock symbol not found: "
-                    f"{row['symbol']}"
-                )
-
-            stock_id = stock.stock_id
-
-            connection.execute(
-                upsert_sql,
-                {
-                    "stock_id": stock_id,
-                    "trade_date": row["trade_date"],
-                    "open": row["open"],
-                    "high": row["high"],
-                    "low": row["low"],
-                    "close": row["close"],
-                    "volume": row["volume"],
-                    "turnover": row["turnover"],
-                },
-            )
-
-            processed_count += 1
 
     print(
         f"Successfully processed "
@@ -242,16 +303,6 @@ def load_fundamental_data(
     Existing records with the same
     (stock_id, report_year, report_quarter)
     will be updated.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Fundamental data.
-
-    db_engine : SQLAlchemy Engine, optional
-        Database engine to use.
-        If not provided, the production engine
-        is used.
 
     Returns
     -------
@@ -284,8 +335,7 @@ def load_fundamental_data(
             f"{missing_columns}"
         )
 
-    upsert_sql = text(
-        """
+    upsert_sql = """
         INSERT INTO fundamental_data (
             stock_id,
             report_year,
@@ -327,58 +377,30 @@ def load_fundamental_data(
             operating_income = EXCLUDED.operating_income,
             net_income = EXCLUDED.net_income,
             updated_at = CURRENT_TIMESTAMP;
-        """
+    """
+
+    def bind_params(row):
+
+        return {
+            "report_year": row["report_year"],
+            "report_quarter": row["report_quarter"],
+            "eps": row["eps"],
+            "eps_ytd": row["eps_ytd"],
+            "bvps": row["bvps"],
+            "dps": row["dps"],
+            "revenue": row.get("revenue"),
+            "gross_profit": row.get("gross_profit"),
+            "operating_income": row.get("operating_income"),
+            "net_income": row.get("net_income"),
+        }
+
+    processed_count = _load_records(
+        df=df,
+        symbol_column="symbol",
+        upsert_sql=upsert_sql,
+        bind_params=bind_params,
+        db_engine=db_engine,
     )
-
-    stock_id_sql = text(
-        """
-        SELECT stock_id
-        FROM stock_master
-        WHERE symbol = :symbol;
-        """
-    )
-
-    processed_count = 0
-
-    with db_engine.begin() as connection:
-
-        for _, row in df.iterrows():
-
-            result = connection.execute(
-                stock_id_sql,
-                {
-                    "symbol": row["symbol"],
-                },
-            )
-
-            stock = result.fetchone()
-
-            if stock is None:
-                raise ValueError(
-                    f"Stock symbol not found: "
-                    f"{row['symbol']}"
-                )
-
-            stock_id = stock.stock_id
-
-            connection.execute(
-                upsert_sql,
-                {
-                    "stock_id": stock_id,
-                    "report_year": row["report_year"],
-                    "report_quarter": row["report_quarter"],
-                    "eps": row["eps"],
-                    "eps_ytd": row["eps_ytd"],
-                    "bvps": row["bvps"],
-                    "dps": row["dps"],
-                    "revenue": row.get("revenue"),
-                    "gross_profit": row.get("gross_profit"),
-                    "operating_income": row.get("operating_income"),
-                    "net_income": row.get("net_income"),
-                },
-            )
-
-            processed_count += 1
 
     print(
         f"Successfully processed "
@@ -397,16 +419,6 @@ def load_dividend_data(
 
     Existing records with the same
     (stock_id, dividend_year) will be updated.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Dividend data.
-
-    db_engine : SQLAlchemy Engine, optional
-        Database engine to use.
-        If not provided, the production engine
-        is used.
 
     Returns
     -------
@@ -437,8 +449,7 @@ def load_dividend_data(
             f"{missing_columns}"
         )
 
-    upsert_sql = text(
-        """
+    upsert_sql = """
         INSERT INTO dividend_data (
             stock_id,
             dividend_year,
@@ -462,52 +473,24 @@ def load_dividend_data(
             ex_dividend_date = EXCLUDED.ex_dividend_date,
             payment_date = EXCLUDED.payment_date,
             updated_at = CURRENT_TIMESTAMP;
-        """
+    """
+
+    def bind_params(row):
+
+        return {
+            "dividend_year": row["dividend_year"],
+            "cash_dividend": row["cash_dividend"],
+            "ex_dividend_date": row["ex_dividend_date"],
+            "payment_date": row["payment_date"],
+        }
+
+    processed_count = _load_records(
+        df=df,
+        symbol_column="symbol",
+        upsert_sql=upsert_sql,
+        bind_params=bind_params,
+        db_engine=db_engine,
     )
-
-    stock_id_sql = text(
-        """
-        SELECT stock_id
-        FROM stock_master
-        WHERE symbol = :symbol;
-        """
-    )
-
-    processed_count = 0
-
-    with db_engine.begin() as connection:
-
-        for _, row in df.iterrows():
-
-            result = connection.execute(
-                stock_id_sql,
-                {
-                    "symbol": row["symbol"],
-                },
-            )
-
-            stock = result.fetchone()
-
-            if stock is None:
-                raise ValueError(
-                    f"Stock symbol not found: "
-                    f"{row['symbol']}"
-                )
-
-            stock_id = stock.stock_id
-
-            connection.execute(
-                upsert_sql,
-                {
-                    "stock_id": stock_id,
-                    "dividend_year": row["dividend_year"],
-                    "cash_dividend": row["cash_dividend"],
-                    "ex_dividend_date": row["ex_dividend_date"],
-                    "payment_date": row["payment_date"],
-                },
-            )
-
-            processed_count += 1
 
     print(
         f"Successfully processed "

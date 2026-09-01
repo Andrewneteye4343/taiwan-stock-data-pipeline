@@ -1,5 +1,6 @@
-import requests
+import time
 
+import requests
 
 TWSE_OPENAPI_BASE_URL = "https://openapi.twse.com.tw/v1"
 
@@ -7,9 +8,11 @@ TWSE_OPENAPI_BASE_URL = "https://openapi.twse.com.tw/v1"
 def fetch_twse_api(
     endpoint: str,
     timeout: int = 30,
+    max_retries: int = 3,
+    retry_delay: float = 2.0,
 ) -> list[dict]:
     """
-    Fetch data from TWSE OpenAPI.
+    Fetch data from TWSE OpenAPI with retry.
 
     Parameters
     ----------
@@ -18,6 +21,13 @@ def fetch_twse_api(
 
     timeout : int
         HTTP request timeout in seconds.
+
+    max_retries : int
+        Number of retries on transient failures.
+
+    retry_delay : float
+        Base delay in seconds between retries
+        (exponential backoff: delay * 2^n).
 
     Returns
     -------
@@ -34,18 +44,50 @@ def fetch_twse_api(
 
     url = f"{TWSE_OPENAPI_BASE_URL}/{endpoint}"
 
-    response = requests.get(
-        url,
-        timeout=timeout,
-    )
+    last_exception = None
 
-    response.raise_for_status()
+    for attempt in range(max_retries):
 
-    data = response.json()
+        try:
 
-    if not isinstance(data, list):
-        raise ValueError(
-            "TWSE API response must be a list."
+            response = requests.get(
+                url,
+                timeout=timeout,
+            )
+
+            response.raise_for_status()
+
+            data = response.json()
+
+            if not isinstance(data, list):
+                raise ValueError(
+                    "TWSE API response must be a list."
+                )
+
+            return data
+
+        except (
+            requests.RequestException,
+            ValueError,
+        ) as exc:
+
+            last_exception = exc
+
+            if attempt < max_retries - 1:
+
+                delay = retry_delay * (2**attempt)
+
+                print(
+                    f"TWSE API retry {attempt + 1}/"
+                    f"{max_retries} for {endpoint} "
+                    f"after {delay:.0f}s: {exc}"
+                )
+
+                time.sleep(delay)
+
+    if last_exception is None:
+        raise RuntimeError(
+            f"TWSE API request failed: {endpoint}"
         )
 
-    return data
+    raise last_exception

@@ -6,7 +6,10 @@ from src.database.query import (
     get_latest_fundamental_data,
 )
 
-from src.indicators.fundamental import calculate_fundamentals
+from src.indicators.fundamental import (
+    calculate_fundamentals,
+    calculate_ttm_eps,
+)
 
 
 def calculate_latest_fundamentals(
@@ -46,6 +49,32 @@ def calculate_latest_fundamentals(
         result["cash_dividend"] = pd.NA
 
     result["dps"] = result["cash_dividend"]
+
+    # ---------------------------------------------------------
+    # 統一量化標準：PE 使用 TTM EPS（近四季累計）
+    # ---------------------------------------------------------
+
+    history = query_fundamental_history(
+        symbol,
+        db_engine=db_engine,
+    )
+
+    if not history.empty:
+
+        history_with_ttm = calculate_ttm_eps(history)
+
+        latest_ttm = (
+            history_with_ttm
+            .sort_values(
+                ["report_year", "report_quarter"]
+            )
+            .iloc[-1]
+        )
+
+        result["eps_ttm"] = latest_ttm.get(
+            "ttm_eps",
+            pd.NA,
+        )
 
     result = calculate_fundamentals(result)
 

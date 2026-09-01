@@ -142,7 +142,12 @@ def get_latest_fundamental_data(
             lf.eps,
             lf.eps_ytd,
             lf.bvps,
-            lf.dps
+            lf.dps,
+
+            lf.revenue,
+            lf.gross_profit,
+            lf.operating_income,
+            lf.net_income
 
         FROM stock_master sm
 

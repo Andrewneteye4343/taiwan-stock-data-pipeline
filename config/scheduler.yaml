@@ -1,3 +1,14 @@
 scheduler:
   realtime_interval_seconds: 60
   daily_pipeline_time: "14:00"
+
+  # 季報/股利管線觸發日（*MM-DD 萬用格式；財報公佈期限後）
+  # Q1: 5/15、Q2: 8/14、Q3: 11/14、Q4: 次年 3/31
+  fundamental_triggers:
+    - "*-05-15"
+    - "*-08-15"
+    - "*-11-15"
+    - "*-03-31"
+
+  # 日行情管線失敗後的重試間隔（分鐘）
+  pipeline_retry_interval_minutes: 30

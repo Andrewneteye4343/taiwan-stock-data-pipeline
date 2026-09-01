@@ -3,7 +3,9 @@ import pytest
 
 from sqlalchemy import text
 
-from scripts import run_pipeline
+# Phase 2 重構後：管線邏輯已遷移至 src.pipelines.market_daily
+# （scripts/run_pipeline.py 僅為相容薄包裝）
+from src.pipelines import market_daily as run_pipeline
 
 
 def test_pipeline_failed(

@@ -8,7 +8,7 @@ psycopg2-binary==2.9.10
 
 PyYAML==6.0.2
 
-streamlit==1.40.1
+streamlit==1.62.0
 plotly==5.24.1
 
 pytest==8.3.4

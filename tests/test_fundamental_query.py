@@ -20,6 +20,10 @@ def test_get_latest_fundamental_data():
         "eps_ytd",
         "bvps",
         "dps",
+        "revenue",
+        "gross_profit",
+        "operating_income",
+        "net_income",
     ]
 
     row = result.iloc[0]

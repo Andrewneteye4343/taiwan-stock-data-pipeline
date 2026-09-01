@@ -1,7 +1,7 @@
 import subprocess
 import sys
 import time
-from datetime import time as dt_time
+from datetime import datetime, time as dt_time, timedelta
 from pathlib import Path
 
 import yaml
@@ -65,6 +65,16 @@ def load_scheduler_config():
         "daily_pipeline_time"
     )
 
+    fundamental_triggers = scheduler_config.get(
+        "fundamental_triggers",
+        [],
+    )
+
+    retry_interval_minutes = scheduler_config.get(
+        "pipeline_retry_interval_minutes",
+        30,
+    )
+
     if interval_seconds is None:
         raise ValueError(
             "Missing 'realtime_interval_seconds' "
@@ -124,9 +134,29 @@ def load_scheduler_config():
             "in HH:MM format"
         )
 
+    if not isinstance(
+        fundamental_triggers,
+        list,
+    ):
+        raise ValueError(
+            "'fundamental_triggers' must be a list "
+            "of '*MM-DD' strings"
+        )
+
+    if not isinstance(
+        retry_interval_minutes,
+        int,
+    ) or retry_interval_minutes < 0:
+        raise ValueError(
+            "'pipeline_retry_interval_minutes' "
+            "must be a non-negative integer"
+        )
+
     return {
         "realtime_interval_seconds": interval_seconds,
         "daily_pipeline_time": parsed_daily_pipeline_time,
+        "fundamental_triggers": fundamental_triggers,
+        "retry_interval_minutes": retry_interval_minutes,
     }
 
 
@@ -151,7 +181,9 @@ def run_daily_pipeline():
     result = subprocess.run(
         [
             sys.executable,
-            "scripts/run_pipeline.py",
+            "-m",
+            "src.cli",
+            "update",
         ],
         check=False,
     )
@@ -162,15 +194,112 @@ def run_daily_pipeline():
             "Post-close daily pipeline completed successfully."
         )
 
-    else:
+        return True
+
+    print(
+        "Post-close daily pipeline failed."
+    )
+
+    print(
+        f"Exit code: {result.returncode}"
+    )
+
+    return False
+
+
+def run_quarterly_pipelines():
+    """
+    Execute the quarterly fundamental and dividend
+    pipelines (triggered after report deadlines).
+    """
+
+    print(
+        "\n========================================"
+    )
+
+    print(
+        "Starting quarterly fundamental pipeline..."
+    )
+
+    print(
+        "========================================"
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "src.cli",
+            "fundamental",
+        ],
+        check=False,
+    )
+
+    if result.returncode != 0:
 
         print(
-            "Post-close daily pipeline failed."
+            "Quarterly fundamental pipeline failed."
         )
 
         print(
             f"Exit code: {result.returncode}"
         )
+
+    print(
+        "Starting quarterly dividend pipeline..."
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "src.cli",
+            "dividend",
+        ],
+        check=False,
+    )
+
+    if result.returncode != 0:
+
+        print(
+            "Quarterly dividend pipeline failed."
+        )
+
+        print(
+            f"Exit code: {result.returncode}"
+        )
+
+
+def is_quarterly_trigger_active(
+    current_date,
+    triggers,
+) -> bool:
+    """
+    Check whether today is on/after a quarterly trigger.
+
+    Triggers use '*MM-DD' wildcard format,
+    e.g. '*-05-15' (May 15th every year).
+    """
+
+    today_month_day = (
+        f"{current_date.month:02d}-"
+        f"{current_date.day:02d}"
+    )
+
+    for trigger in triggers:
+
+        if not isinstance(trigger, str):
+            continue
+
+        if not trigger.startswith("*-"):
+            continue
+
+        trigger_month_day = trigger[2:]
+
+        if today_month_day >= trigger_month_day:
+            return True
+
+    return False
 
 
 def run_realtime_update():
@@ -298,6 +427,14 @@ def main():
     daily_pipeline_time = config[
         "daily_pipeline_time"
     ]
+
+    fundamental_triggers = config[
+        "fundamental_triggers"
+    ]
+
+    retry_interval_minutes = config[
+        "retry_interval_minutes"
+    ]
     
     print(
         "========================================"
@@ -318,6 +455,8 @@ def main():
 
     last_session = None
     post_close_completed_date = None
+    daily_failed_date = None
+    quarterly_completed_date = None
 
     while True:
     
@@ -352,24 +491,80 @@ def main():
             wait_seconds = realtime_interval
 
         elif session == MarketSession.POST_CLOSE:
-    
+
             current_datetime = now()
 
-            if current_datetime.time() < daily_pipeline_time:
+            daily_due = (
+                current_datetime.time()
+                >= daily_pipeline_time
+            )
 
-                print(
-                    "Waiting for daily pipeline time: "
-                    f"{daily_pipeline_time.strftime('%H:%M')}"
-                )
+            daily_done = (
+                post_close_completed_date
+                == current_date
+            )
+
+            if daily_due and not daily_done:
+
+                # 日行情管線（含失敗重試）
+                if run_daily_pipeline():
+
+                    post_close_completed_date = (
+                        current_date
+                    )
+
+                    daily_failed_date = None
+
+                else:
+
+                    daily_failed_date = current_date
+
+                    print(
+                        "Daily pipeline failed; "
+                        "will retry after "
+                        f"{retry_interval_minutes} minutes."
+                    )
 
             elif (
-                post_close_completed_date
-                != current_date
+                daily_due
+                and daily_failed_date == current_date
             ):
 
-                run_daily_pipeline()
+                # 重試已失敗的日行情管線
+                retry_at = (
+                    datetime.combine(
+                        current_date,
+                        daily_pipeline_time,
+                    )
+                    + timedelta(
+                        minutes=retry_interval_minutes
+                    )
+                )
 
-                post_close_completed_date = (
+                if current_datetime >= retry_at:
+
+                    if run_daily_pipeline():
+
+                        post_close_completed_date = (
+                            current_date
+                        )
+
+                        daily_failed_date = None
+
+            elif (
+                daily_done
+                and quarterly_completed_date
+                != current_date
+                and is_quarterly_trigger_active(
+                    current_date,
+                    fundamental_triggers,
+                )
+            ):
+
+                # 季報/股利管線（每季財報期限後執行一次）
+                run_quarterly_pipelines()
+
+                quarterly_completed_date = (
                     current_date
                 )
 

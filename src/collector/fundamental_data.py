@@ -1,32 +1,6 @@
 import pandas as pd
 
-
-def _parse_numeric(value):
-    """
-    Convert a raw numeric value into float.
-
-    Invalid values such as "-", "", None, or non-numeric
-    strings are converted to None.
-    """
-
-    if value is None:
-        return None
-
-    if isinstance(value, str):
-        value = value.strip()
-
-        if value == "":
-            return None
-
-        if value == "-":
-            return None
-
-        value = value.replace(",", "")
-
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
+from src.collector.parsing import parse_numeric as _parse_numeric
 
 
 def parse_financial_data(

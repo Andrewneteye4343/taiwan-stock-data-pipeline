@@ -116,6 +116,11 @@ CREATE TABLE IF NOT EXISTS fundamental_data (
     bvps NUMERIC(12, 4),
     dps NUMERIC(12, 4),
 
+    revenue NUMERIC(20, 2),
+    gross_profit NUMERIC(20, 2),
+    operating_income NUMERIC(20, 2),
+    net_income NUMERIC(20, 2),
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

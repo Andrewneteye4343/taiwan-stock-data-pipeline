@@ -49,8 +49,10 @@ def test_calculate_latest_fundamentals_values():
 
     assert row["symbol"] == "2330"
 
+    # PE 基準優先序（v2.0 統一量化標準）：
+    # eps_ttm > eps_ytd > eps；測試資料無 eps_ttm，故用 eps_ytd
     assert float(row["pe"]) == pytest.approx(
-        float(row["close"]) / float(row["eps"]),
+        float(row["close"]) / float(row["eps_ytd"]),
         rel=1e-6,
     )
 

@@ -4,7 +4,7 @@ Write-Host " Updating latest market data..."
 Write-Host "========================================"
 Write-Host ""
 
-docker compose run --rm pipeline python scripts/run_pipeline.py
+docker compose run --rm pipeline python -m src.cli update
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
