@@ -15,16 +15,74 @@ from src.config.stock_config import (
     get_stock_config,
 )
 from src.etl.load import load_fundamental_data
+from src.etl.transform import derive_single_quarter_eps
 from src.etl.validate import validate_fundamental_data
 
 
-TWSE_FUNDAMENTAL_ENDPOINT = (
-    "opendata/t187ap06_L_ci"
-)
+# ------------------------------------------------------------
+# TWSE 財報開放資料端點（v2.1 修正）
+#
+# 舊端點 t187ap06_L / t187ap07_L 已不在官方目錄，
+# 現行端點依「產業別」分表（swagger 實測確認）：
+#   _ci   一般業（佔絕大多數）
+#   _fh   金控業（如富邦金 2881）
+#   _basi 金融業
+#   _bd   證券期貨業
+#   _ins  保險業
+#   _mim  異業
+#
+# 注意：此開放資料為「快照」——只含最新一季。
+# 歷史需靠每季執行本管線累積（快照累積法）。
+# ------------------------------------------------------------
 
-TWSE_BALANCE_SHEET_ENDPOINT = (
-    "opendata/t187ap07_L_ci"
-)
+TWSE_FUNDAMENTAL_ENDPOINTS = [
+    "opendata/t187ap06_L_ci",
+    "opendata/t187ap06_L_fh",
+    "opendata/t187ap06_L_basi",
+    "opendata/t187ap06_L_bd",
+    "opendata/t187ap06_L_ins",
+    "opendata/t187ap06_L_mim",
+]
+
+TWSE_BALANCE_SHEET_ENDPOINTS = [
+    "opendata/t187ap07_L_ci",
+    "opendata/t187ap07_L_fh",
+    "opendata/t187ap07_L_basi",
+    "opendata/t187ap07_L_bd",
+    "opendata/t187ap07_L_ins",
+    "opendata/t187ap07_L_mim",
+]
+
+
+def _fetch_all(endpoints: list[str]) -> list[dict]:
+    """
+    Fetch and merge all industry tables.
+
+    A failing table is skipped with a warning
+    (industry tables can be sparse or unavailable).
+    """
+
+    merged = []
+
+    for endpoint in endpoints:
+
+        try:
+
+            records = fetch_twse_api(endpoint)
+
+            print(
+                f"  ✓ {endpoint}: {len(records)} 筆"
+            )
+
+            merged.extend(records)
+
+        except Exception as exc:
+
+            print(
+                f"  ⚠ {endpoint} 抓取失敗，已跳過：{exc}"
+            )
+
+    return merged
 
 
 def fetch_fundamental_data():
@@ -38,11 +96,12 @@ def fetch_fundamental_data():
     """
 
     print(
-        "Fetching TWSE financial data..."
+        "Fetching TWSE financial data "
+        "(6 張產業表) ..."
     )
 
-    financial_raw = fetch_twse_api(
-        TWSE_FUNDAMENTAL_ENDPOINT
+    financial_raw = _fetch_all(
+        TWSE_FUNDAMENTAL_ENDPOINTS
     )
 
     print(
@@ -51,11 +110,12 @@ def fetch_fundamental_data():
     )
 
     print(
-        "Fetching TWSE balance sheet data..."
+        "Fetching TWSE balance sheet data "
+        "(6 張產業表) ..."
     )
 
-    balance_raw = fetch_twse_api(
-        TWSE_BALANCE_SHEET_ENDPOINT
+    balance_raw = _fetch_all(
+        TWSE_BALANCE_SHEET_ENDPOINTS
     )
 
     print(
@@ -181,6 +241,15 @@ def process_symbol(
         )
 
         return 0, "no_data"
+
+    # --------------------------------------------------------
+    # 單季 EPS 推導（累計 → 差值；v2.1 修正）
+    # TWSE 損益表為累計數，單季 EPS = 本季累計 − 上季累計
+    # --------------------------------------------------------
+
+    fundamental_df = derive_single_quarter_eps(
+        fundamental_df
+    )
 
     # 資料品質檢查（Phase 1：季務資料準確性）
     validate_fundamental_data(fundamental_df)

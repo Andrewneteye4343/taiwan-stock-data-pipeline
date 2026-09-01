@@ -206,13 +206,15 @@ def normalize_twse_financial_data(
                 "report_year": int(year) + 1911,
                 "report_quarter": int(quarter),
 
-                # EPS
-                "eps": item.get(
+                # 單季 EPS：由「累計 EPS 差值」推導（derive_single_quarter_eps）
+                # 收集當下無法得知，先設 None
+                "eps": None,
+
+                # TWSE 損益表為「累計數」：
+                # 基本每股盈餘（元）= 年初至今累計 EPS
+                "eps_ytd": item.get(
                     "基本每股盈餘（元）"
                 ),
-
-                # Currently unavailable from this endpoint
-                "eps_ytd": None,
 
                 # BVPS will be provided by
                 # t187ap07_L_ci later
@@ -222,7 +224,7 @@ def normalize_twse_financial_data(
                 # dividend data later
                 "dps": None,
 
-                # Income statement
+                # Income statement（累計數）
                 "revenue": item.get(
                     "營業收入"
                 ),
