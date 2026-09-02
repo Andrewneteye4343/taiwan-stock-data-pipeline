@@ -6,9 +6,7 @@ import streamlit as st
 from sqlalchemy import create_engine
 
 from dashboard.components.realtime import (
-    get_refresh_options,
     load_realtime_quote,
-    normalize_refresh_interval,
 )
 
 from src.services.fundamental_service import (
@@ -40,9 +38,71 @@ st.set_page_config(
     page_title="Taiwan Stock Dashboard",
     page_icon="📈",
     layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+
+# ============================================================
+# Global styling（專業深色主題）
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+    [data-testid="stAppViewContainer"] {
+        background: #0B1220;
+    }
+    [data-testid="stHeader"] {
+        background: transparent;
+    }
+    [data-testid="stSidebar"] {
+        background: #0D1526;
+        border-right: 1px solid #1C2942;
+    }
+    /* 標題：白色（深色背景上更明顯） */
+    h1 {
+        color: #FFFFFF !important;
+    }
+    /* 章節標題：左側重點色條 */
+    h2, h3 {
+        border-left: 4px solid #4DA3FF;
+        padding-left: 12px;
+        color: #FFFFFF !important;
+    }
+    /* 指標卡片 */
+    div[data-testid="stMetric"] {
+        background: #131C2E;
+        border: 1px solid #243048;
+        border-radius: 10px;
+        padding: 14px 16px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    }
+    div[data-testid="stMetric"] label {
+        color: #8FA3C0;
+    }
+    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: #E8EDF5;
+    }
+    /* 資料表格 */
+    [data-testid="stDataFrame"] {
+        border: 1px solid #1C2942;
+        border-radius: 8px;
+    }
+    /* caption 提示文字 */
+    [data-testid="stCaptionContainer"] p {
+        color: #8FA3C0;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
 st.title("📈 Taiwan Stock Market Dashboard")
+
+st.caption(
+    "資料來源：TWSE 官方 OpenAPI ｜ "
+    f"更新時間：{pd.Timestamp.now(tz='Asia/Taipei').strftime('%Y-%m-%d %H:%M:%S')}"
+)
 
 
 # ============================================================
@@ -84,24 +144,33 @@ if not stock_options:
 
 
 # ============================================================
-# Stock selector
+# Stock selector（側邊欄）
 # ============================================================
 
-selected_stock = st.selectbox(
-    "Select Stock",
-    [
-        item["symbol"]
-        for item in stock_options
-    ],
-    format_func=lambda symbol: next(
-        (
-            item["name"]
+with st.sidebar:
+
+    st.markdown("### 🔍 股票選擇")
+
+    selected_stock = st.selectbox(
+        "Select Stock",
+        [
+            item["symbol"]
             for item in stock_options
-            if item["symbol"] == symbol
+        ],
+        format_func=lambda symbol: next(
+            (
+                item["name"]
+                for item in stock_options
+                if item["symbol"] == symbol
+            ),
+            symbol,
         ),
-        symbol,
-    ),
-)
+        label_visibility="collapsed",
+    )
+
+    st.caption(
+        "資料來源：TWSE 官方 OpenAPI"
+    )
 
 
 selected_stock_name = next(
@@ -124,23 +193,165 @@ st.header(
 
 
 # ============================================================
-# Realtime refresh setting
+# Realtime quote（每 60 秒自動更新）
 # ============================================================
 
-refresh_options = get_refresh_options()
+@st.fragment(run_every=60)
+def render_realtime_quote(symbol):
+    """
+    Render the realtime quote section.
 
-selected_refresh_label = st.selectbox(
-    "Realtime Refresh",
-    list(refresh_options.keys()),
-    index=1,
-)
+    Uses st.fragment(run_every=60) so the section
+    refreshes automatically every 60 seconds
+    without reloading the whole page.
+    """
 
-refresh_interval = normalize_refresh_interval(
-    refresh_options[selected_refresh_label]
-)
+    st.subheader("2. 即時行情")
 
-# Keep refresh_interval available for realtime component.
-_ = refresh_interval
+    realtime_quote = load_realtime_quote(
+        symbol
+    )
+
+    if realtime_quote is None:
+
+        st.info(
+            "目前無法取得即時行情資料。"
+        )
+
+        return
+
+    realtime_trade_date = realtime_quote.get(
+        "trade_date"
+    )
+
+    if realtime_trade_date is not None:
+        st.caption(
+            f"即時行情交易日：{realtime_trade_date}"
+        )
+
+    st.caption(
+        "📌 即時行情每 60 秒自動更新"
+    )
+
+    realtime_col1, realtime_col2, realtime_col3, realtime_col4 = (
+        st.columns(4)
+    )
+
+    # --------------------------------------------------------
+    # Current price
+    # --------------------------------------------------------
+
+    previous_trade_price = realtime_quote.get(
+        "previous_trade_price"
+    )
+
+    if previous_trade_price is None:
+        realtime_col1.metric(
+            "上筆資料交易價格",
+            "暫無成交資料",
+        )
+    else:
+        realtime_col1.metric(
+            "上筆資料交易價格",
+            f"{previous_trade_price:,.2f}",
+        )
+
+    # --------------------------------------------------------
+    # Price change
+    # --------------------------------------------------------
+
+    change = realtime_quote.get(
+        "change"
+    )
+
+    change_pct = realtime_quote.get(
+        "change_pct"
+    )
+
+    if change is None or change_pct is None:
+
+        realtime_col2.metric(
+            "漲跌",
+            "暫無資料",
+        )
+
+    else:
+
+        if change > 0:
+            change_color = "#FF5252"
+
+        elif change < 0:
+            change_color = "#2ECC71"
+
+        else:
+            change_color = "#8FA3C0"
+
+        realtime_col2.markdown(
+            f"""
+            <div style="
+                background: #131C2E;
+                border: 1px solid #243048;
+                border-radius: 10px;
+                padding: 10px 16px;
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+            ">
+                <div style="font-size: 14px; color: #8FA3C0;">
+                    漲跌
+                </div>
+                <div style="
+                    font-size: 28px;
+                    font-weight: 600;
+                    color: {change_color};
+                ">
+                    {change:,.2f}
+                </div>
+                <div style="
+                    font-size: 14px;
+                    color: {change_color};
+                ">
+                    {change_pct:.2f}%
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    # --------------------------------------------------------
+    # Volume
+    # --------------------------------------------------------
+
+    volume = realtime_quote.get(
+        "volume"
+    )
+
+    realtime_col3.metric(
+        "成交量",
+        (
+            f"{volume:,}"
+            if volume is not None
+            else "暫無資料"
+        ),
+    )
+
+    # --------------------------------------------------------
+    # Realtime data time
+    # --------------------------------------------------------
+
+    trade_time = realtime_quote.get(
+        "trade_time"
+    )
+
+    realtime_col4.metric(
+        "資料時間",
+        (
+            trade_time
+            if trade_time is not None
+            else "暫無資料"
+        ),
+    )
+
+
+render_realtime_quote(selected_stock)
 
 
 # ============================================================
@@ -240,149 +451,10 @@ latest_trade_date = latest["trade_date"].strftime(
 
 
 # ============================================================
-# 1. Realtime Quote
-# ============================================================
-
-st.subheader("2️⃣ 即時行情")
-
-realtime_quote = load_realtime_quote(
-    selected_stock
-)
-
-if realtime_quote is None:
-
-    st.info(
-        "目前無法取得即時行情資料。"
-    )
-
-else:
-
-    realtime_trade_date = realtime_quote.get(
-        "trade_date"
-    )
-
-    if realtime_trade_date is not None:
-        st.caption(
-            f"即時行情交易日：{realtime_trade_date}"
-        )
-
-    realtime_col1, realtime_col2, realtime_col3, realtime_col4 = (
-        st.columns(4)
-    )
-
-    # --------------------------------------------------------
-    # Current price
-    # --------------------------------------------------------
-
-    previous_trade_price = realtime_quote.get(
-        "previous_trade_price"
-    )
-
-    if previous_trade_price is None:
-        realtime_col1.metric(
-            "上筆資料交易價格",
-            "暫無成交資料",
-        )
-    else:
-        realtime_col1.metric(
-            "上筆資料交易價格",
-            f"{previous_trade_price:,.2f}",
-        )
-
-    # --------------------------------------------------------
-    # Price change
-    # --------------------------------------------------------
-
-    change = realtime_quote.get(
-        "change"
-    )
-
-    change_pct = realtime_quote.get(
-        "change_pct"
-    )
-
-    if change is None or change_pct is None:
-
-        realtime_col2.metric(
-            "漲跌",
-            "暫無資料",
-        )
-
-    else:
-
-        if change > 0:
-            change_color = "#d60000"
-
-        elif change < 0:
-            change_color = "#008000"
-
-        else:
-            change_color = "#666666"
-
-        realtime_col2.markdown(
-            f"""
-            <div>
-                <div style="font-size: 14px;">
-                    漲跌
-                </div>
-                <div style="
-                    font-size: 28px;
-                    font-weight: 600;
-                    color: {change_color};
-                ">
-                    {change:,.2f}
-                </div>
-                <div style="
-                    font-size: 14px;
-                    color: {change_color};
-                ">
-                    {change_pct:.2f}%
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    # --------------------------------------------------------
-    # Volume
-    # --------------------------------------------------------
-
-    volume = realtime_quote.get(
-        "volume"
-    )
-
-    realtime_col3.metric(
-        "成交量",
-        (
-            f"{volume:,}"
-            if volume is not None
-            else "暫無資料"
-        ),
-    )
-
-    # --------------------------------------------------------
-    # Realtime data time
-    # --------------------------------------------------------
-
-    trade_time = realtime_quote.get(
-        "trade_time"
-    )
-
-    realtime_col4.metric(
-        "資料時間",
-        (
-            trade_time
-            if trade_time is not None
-            else "暫無資料"
-        ),
-    )
-
-
-# ============================================================
 # 2. Latest historical price
 # ============================================================
 
-st.subheader("3️⃣ 最新歷史行情")
+st.subheader("3. 最新歷史行情")
 st.caption(
     f"歷史資料日期：{latest_trade_date}"
 )
@@ -419,7 +491,7 @@ price_col4.metric(
 # 3. Price chart
 # ============================================================
 
-st.subheader("4️⃣ 股價圖")
+st.subheader("4. 股價圖")
 
 price_chart_df = df.copy()
 
@@ -444,19 +516,30 @@ price_chart_df = (
     .sort_values("trade_date")
 )
 
-price_chart = (
+price_chart_df["ma20"] = (
+    price_chart_df["close"].rolling(20).mean()
+)
+
+close_line = (
     alt.Chart(price_chart_df)
-    .mark_line()
+    .mark_line(
+        stroke="#4DA3FF",
+        strokeWidth=2,
+    )
     .encode(
         x=alt.X(
             "trade_date:T",
             title="交易日期",
+            axis=alt.Axis(
+                grid=False,
+            ),
         ),
         y=alt.Y(
             "close:Q",
             title="股價（元）",
             axis=alt.Axis(
                 titlePadding=10,
+                gridColor="#1C2942",
             ),
         ),
         tooltip=[
@@ -472,8 +555,46 @@ price_chart = (
             ),
         ],
     )
+)
+
+ma20_line = (
+    alt.Chart(price_chart_df)
+    .mark_line(
+        stroke="#F0B90B",
+        strokeWidth=1.5,
+        strokeDash=[4, 4],
+    )
+    .encode(
+        x=alt.X(
+            "trade_date:T",
+            title="交易日期",
+        ),
+        y=alt.Y(
+            "ma20:Q",
+            title="股價（元）",
+        ),
+        tooltip=[
+            alt.Tooltip(
+                "trade_date:T",
+                title="交易日期",
+                format="%Y-%m-%d",
+            ),
+            alt.Tooltip(
+                "ma20:Q",
+                title="MA20（元）",
+                format=",.2f",
+            ),
+        ],
+    )
+)
+
+price_chart = (
+    (close_line + ma20_line)
     .properties(
-        height=400,
+        height=420,
+    )
+    .configure(
+        background="transparent",
     )
 )
 
@@ -487,7 +608,7 @@ st.altair_chart(
 # 4. Trading volume chart
 # ============================================================
 
-st.subheader("5️⃣ 成交量圖")
+st.subheader("5. 成交量圖")
 
 volume_chart_df = df[
     [
@@ -512,21 +633,21 @@ def get_volume_color(row):
     Determine volume bar color.
 
     Taiwan stock market style:
+    - White : first record / no change
     - Red   : volume increased
     - Green : volume decreased
-    - Gray  : first record / no comparison
     """
 
     if pd.isna(row["previous_volume"]):
-        return "#808080"
+        return "#FFFFFF"
 
     if row["volume"] > row["previous_volume"]:
-        return "#d60000"
+        return "#FF5252"
 
     if row["volume"] < row["previous_volume"]:
-        return "#008000"
+        return "#2ECC71"
 
-    return "#808080"
+    return "#FFFFFF"
 
 
 volume_chart_df["volume_color"] = (
@@ -547,9 +668,9 @@ fig.add_trace(
             color=volume_chart_df["volume_color"],
         ),
 
-        # Narrower bars
-        width=100,
-
+        # 注意：不要設定 width（像素寬）——
+        # plotly 5.x 的 bug：width 會導致逐柱 marker 顏色失效，
+        # 全部 bar 會渲染成第一個顏色。改用 bargap 控制間距。
         hovertemplate=(
             "日期：%{x|%Y-%m-%d}<br>"
             "成交量：%{y:,}<extra></extra>"
@@ -559,13 +680,21 @@ fig.add_trace(
 
 
 fig.update_layout(
-    height=350,
+    template="plotly_dark",
+    height=380,
 
     margin=dict(
         l=20,
         r=20,
         t=20,
         b=20,
+    ),
+
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+
+    font=dict(
+        color="#E8EDF5",
     ),
 
     xaxis=dict(
@@ -576,6 +705,7 @@ fig.update_layout(
     yaxis=dict(
         title="成交量",
         showgrid=True,
+        gridcolor="#1C2942",
     ),
 
     # Increase spacing between bars.
@@ -588,6 +718,8 @@ fig.update_layout(
 st.plotly_chart(
     fig,
     use_container_width=True,
+    # 自訂樣式的圖表：不使用 Streamlit 預設主題覆寫
+    theme=None,
 )
 
 
@@ -595,7 +727,7 @@ st.plotly_chart(
 # 5. Quarterly financial data
 # ============================================================
 
-st.subheader("6️⃣ 季度財務資料")
+st.subheader("6. 季度財務資料")
 
 fundamental_history = get_fundamental_history(
     selected_stock
@@ -684,7 +816,7 @@ else:
 # 6. EPS trend
 # ============================================================
 
-st.subheader("7️⃣ EPS Trend")
+st.subheader("7. EPS Trend")
 
 if fundamental_history.empty:
 
@@ -735,6 +867,8 @@ else:
             alt.Chart(eps_chart_df)
             .mark_line(
                 point=True,
+                stroke="#4DA3FF",
+                strokeWidth=2,
             )
             .encode(
                 x=alt.X(
@@ -747,6 +881,9 @@ else:
                 y=alt.Y(
                     "eps:Q",
                     title="EPS（元）",
+                    axis=alt.Axis(
+                        gridColor="#1C2942",
+                    ),
                 ),
                 tooltip=[
                     alt.Tooltip(
@@ -763,6 +900,9 @@ else:
             .properties(
                 height=350,
             )
+            .configure(
+                background="transparent",
+            )
         )
 
         st.altair_chart(
@@ -775,7 +915,7 @@ else:
 # 7. Fundamental indicators
 # ============================================================
 
-st.subheader("📊 估值與獲利指標")
+st.subheader("8. 估值與獲利指標")
 
 
 latest_fundamentals = (
@@ -871,7 +1011,7 @@ else:
 
 
     margin_col1.metric(
-        "8️⃣ 毛利率",
+        "毛利率",
         (
             f"{gross_margin:.2f}%"
             if gross_margin is not None
@@ -881,7 +1021,7 @@ else:
 
 
     margin_col2.metric(
-        "9️⃣ 營業利益率",
+        "營業利益率",
         (
             f"{operating_margin:.2f}%"
             if operating_margin is not None
@@ -891,7 +1031,7 @@ else:
 
 
     margin_col3.metric(
-        "🔟 淨利率",
+        "淨利率",
         (
             f"{net_margin:.2f}%"
             if net_margin is not None
@@ -910,7 +1050,7 @@ else:
 
 
     valuation_col1.metric(
-        "1️⃣1️⃣ PE",
+        "PE",
         (
             f"{pe:.2f}"
             if pe is not None
@@ -920,7 +1060,7 @@ else:
 
 
     valuation_col2.metric(
-        "1️⃣2️⃣ PB",
+        "PB",
         (
             f"{pb:.2f}"
             if pb is not None
@@ -930,7 +1070,7 @@ else:
 
 
     valuation_col3.metric(
-        "1️⃣3️⃣ 殖利率",
+        "殖利率",
         (
             f"{dividend_yield:.2f}%"
             if dividend_yield is not None

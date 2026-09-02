@@ -6,6 +6,9 @@ COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Streamlit 主題設定（深色專業主題）
+COPY .streamlit ./.streamlit
+
 COPY src ./src
 COPY scripts ./scripts
 COPY dashboard ./dashboard
