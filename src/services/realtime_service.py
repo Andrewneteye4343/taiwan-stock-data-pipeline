@@ -1,3 +1,5 @@
+import time
+
 import requests
 from datetime import datetime
 
@@ -163,6 +165,8 @@ def parse_realtime_quote(
 
 def fetch_realtime_quote(
     symbol: str,
+    max_retries: int = 1,
+    retry_delay: float = 3.0,
 ):
     """
     Fetch realtime quote from TWSE.
@@ -171,6 +175,11 @@ def fetch_realtime_quote(
     ----------
     symbol : str
         Taiwan stock symbol, e.g. "2330".
+    max_retries : int
+        Retry count when the API returns no transaction
+        price（z 欄位為 "-"）。預設重試 1 次。
+    retry_delay : float
+        Seconds to wait before retrying.
 
     Returns
     -------
@@ -186,21 +195,38 @@ def fetch_realtime_quote(
     if not symbol:
         raise ValueError("symbol cannot be empty")
 
-    params = {
-        "ex_ch": f"tse_{symbol}.tw",
-        "json": "1",
-        "delay": "0",
-        "t": "0",
-    }
+    def _fetch_once():
 
-    response = requests.get(
-        TWSE_REALTIME_URL,
-        params=params,
-        timeout=10,
-    )
+        params = {
+            "ex_ch": f"tse_{symbol}.tw",
+            "json": "1",
+            "delay": "0",
+            "t": "0",
+        }
 
-    response.raise_for_status()
+        response = requests.get(
+            TWSE_REALTIME_URL,
+            params=params,
+            timeout=10,
+        )
 
-    payload = response.json()
+        response.raise_for_status()
 
-    return parse_realtime_quote(payload)
+        return parse_realtime_quote(
+            response.json()
+        )
+
+    quote = _fetch_once()
+
+    # TWSE 的 z 欄位在「該 5 秒更新週期無成交」時回傳 "-"，
+    # 此時重試一次，提高拿到最新成交價的機率
+    if (
+        quote is not None
+        and quote.get("previous_trade_price") is None
+        and max_retries > 0
+    ):
+        time.sleep(retry_delay)
+
+        quote = _fetch_once()
+
+    return quote

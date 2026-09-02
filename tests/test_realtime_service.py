@@ -125,6 +125,67 @@ def test_fetch_realtime_quote_success():
 
     mock_get.assert_called_once()
 
+
+def test_fetch_realtime_quote_retries_when_no_price():
+    """
+    z 欄位為 "-"（無成交）時應重試一次，
+    第二次拿到價格則採用第二次結果。
+    """
+
+    from unittest.mock import Mock, patch
+
+    from src.services.realtime_service import (
+        fetch_realtime_quote,
+    )
+
+    no_price_response = Mock()
+    no_price_response.raise_for_status.return_value = None
+    no_price_response.json.return_value = {
+        "msgArray": [
+            {
+                "c": "2330",
+                "n": "台積電",
+                "z": "-",
+                "y": "2400.0000",
+                "d": "20260902",
+                "t": "10:30:05",
+                "v": "17217",
+            }
+        ]
+    }
+
+    with_price_response = Mock()
+    with_price_response.raise_for_status.return_value = None
+    with_price_response.json.return_value = {
+        "msgArray": [
+            {
+                "c": "2330",
+                "n": "台積電",
+                "z": "2395.0000",
+                "y": "2400.0000",
+                "d": "20260902",
+                "t": "10:30:40",
+                "v": "17250",
+            }
+        ]
+    }
+
+    with patch(
+        "src.services.realtime_service.requests.get",
+        side_effect=[
+            no_price_response,
+            with_price_response,
+        ],
+    ) as mock_get:
+
+        result = fetch_realtime_quote(
+            "2330",
+            retry_delay=0.01,
+        )
+
+    assert mock_get.call_count == 2
+    assert result["previous_trade_price"] == 2395.0
+
 def test_fetch_realtime_quote_http_error():
     fake_response = Mock()
 
