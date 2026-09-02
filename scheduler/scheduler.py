@@ -75,6 +75,11 @@ def load_scheduler_config():
         30,
     )
 
+    alert_change_pct = scheduler_config.get(
+        "alert_change_pct",
+        2.0,
+    )
+
     if interval_seconds is None:
         raise ValueError(
             "Missing 'realtime_interval_seconds' "
@@ -152,11 +157,29 @@ def load_scheduler_config():
             "must be a non-negative integer"
         )
 
+    try:
+
+        alert_change_pct = float(
+            alert_change_pct
+        )
+
+    except (ValueError, TypeError):
+
+        raise ValueError(
+            "'alert_change_pct' must be a number"
+        )
+
+    if alert_change_pct <= 0:
+        raise ValueError(
+            "'alert_change_pct' must be positive"
+        )
+
     return {
         "realtime_interval_seconds": interval_seconds,
         "daily_pipeline_time": parsed_daily_pipeline_time,
         "fundamental_triggers": fundamental_triggers,
         "retry_interval_minutes": retry_interval_minutes,
+        "alert_change_pct": alert_change_pct,
     }
 
 
@@ -166,16 +189,11 @@ def run_daily_pipeline():
     Execute the post-close daily stock pipeline.
     """
 
-    print(
-        "========================================"
-    )
+    timestamp = now().strftime("%Y-%m-%d %H:%M:%S")
 
     print(
+        f"[{timestamp}] "
         "Starting post-close daily pipeline..."
-    )
-
-    print(
-        "========================================"
     )
 
     result = subprocess.run(
@@ -213,16 +231,11 @@ def run_quarterly_pipelines():
     pipelines (triggered after report deadlines).
     """
 
-    print(
-        "\n========================================"
-    )
+    timestamp = now().strftime("%Y-%m-%d %H:%M:%S")
 
     print(
+        f"[{timestamp}] "
         "Starting quarterly fundamental pipeline..."
-    )
-
-    print(
-        "========================================"
     )
 
     result = subprocess.run(
@@ -302,7 +315,51 @@ def is_quarterly_trigger_active(
     return False
 
 
-def run_realtime_update():
+def format_realtime_line(
+    symbol: str,
+    name: str,
+    price,
+    change,
+    change_pct,
+    alert_change_pct: float = 2.0,
+) -> str:
+    """
+    Format a realtime quote line.
+
+    When |change_pct| >= alert_change_pct, the line
+    is annotated with a warning marker.
+    """
+
+    if change_pct is None:
+        pct_text = "N/A"
+    else:
+        pct_text = f"{change_pct:.2f}%"
+
+    if change is None:
+        change_text = "N/A"
+    else:
+        change_text = str(change)
+
+    line = (
+        f"  {symbol} {name}: "
+        f"{price} ({change_text}, {pct_text})"
+    )
+
+    if (
+        change_pct is not None
+        and abs(change_pct) >= alert_change_pct
+    ):
+
+        line += (
+            f"  ⚠️ 漲跌幅 ≥ {alert_change_pct}%"
+        )
+
+    return line
+
+
+def run_realtime_update(
+    alert_change_pct: float = 2.0,
+):
     """
     Fetch realtime market data.
 
@@ -322,24 +379,12 @@ def run_realtime_update():
         if stock.get("enabled", True)
     ]
 
-    print(
-        "\n========================================"
-    )
+    timestamp = now().strftime("%Y-%m-%d %H:%M:%S")
 
     print(
-        "Realtime Market Update"
+        f"[{timestamp}] "
+        f"Realtime update ({len(stocks)} stocks)"
     )
-
-    print(
-        f"Stocks: {len(stocks)}"
-    )
-
-    print(
-        "========================================"
-    )
-
-    successful = 0
-    failed = 0
 
     for stock in stocks:
 
@@ -355,8 +400,8 @@ def run_realtime_update():
             if quote is None:
 
                 print(
-                    f"{symbol} {name}: "
-                    "No realtime data"
+                    f"  {symbol} {name}: "
+                    "no realtime data"
                 )
 
                 continue
@@ -367,50 +412,23 @@ def run_realtime_update():
             change = quote.get("change")
             change_pct = quote.get("change_pct")
 
-            if change_pct is None:
-                change_pct_text = "N/A"
-            else:
-                change_pct_text = f"{change_pct:.2f}%"
-
-            if change is None:
-                change_text = "N/A"
-            else:
-                change_text = str(change)
-
             print(
-                f"{symbol} {name}: "
-                f"{previous_trade_price} "
-                f"({change_text}, "
-                f"{change_pct_text})"
+                format_realtime_line(
+                    symbol=symbol,
+                    name=name,
+                    price=previous_trade_price,
+                    change=change,
+                    change_pct=change_pct,
+                    alert_change_pct=alert_change_pct,
+                )
             )
-
-
-            successful += 1
 
         except Exception as exc:
 
-            failed += 1
-
             print(
-                f"{symbol} {name}: "
-                f"Realtime update failed - {exc}"
+                f"  {symbol} {name}: "
+                f"update failed - {exc}"
             )
-
-    print(
-        "----------------------------------------"
-    )
-
-    print(
-        f"Realtime successful: {successful}"
-    )
-
-    print(
-        f"Realtime failed: {failed}"
-    )
-
-    print(
-        "Realtime data was not stored in PostgreSQL."
-    )
 
 
 def main():
@@ -435,23 +453,32 @@ def main():
     retry_interval_minutes = config[
         "retry_interval_minutes"
     ]
+
+    alert_change_pct = config[
+        "alert_change_pct"
+    ]
     
     print(
-        "========================================"
+        f"[{now().strftime('%Y-%m-%d %H:%M:%S')}] "
+        "Stock Market Scheduler started"
     )
 
     print(
-        "Stock Market Scheduler"
-    )
-
-    print(
-        "Realtime interval: "
+        f"  Realtime interval: "
         f"{realtime_interval} seconds"
     )
 
     print(
-        "========================================"
+        f"  Daily pipeline time: "
+        f"{daily_pipeline_time.strftime('%H:%M')}"
     )
+
+    if fundamental_triggers:
+
+        print(
+            "  Quarterly triggers: "
+            f"{', '.join(fundamental_triggers)}"
+        )
 
     last_session = None
     post_close_completed_date = None
@@ -464,16 +491,15 @@ def main():
 
         current_date = today()
 
-        print(
-            "\n========================================"
+        current_datetime = now()
+
+        timestamp = current_datetime.strftime(
+            "%Y-%m-%d %H:%M:%S"
         )
 
         print(
+            f"\n[{timestamp}] "
             f"Market session: {session.value}"
-        )
-
-        print(
-            "========================================"
         )
 
         if session == MarketSession.TRADING:
@@ -486,13 +512,13 @@ def main():
             ):
                 post_close_completed_date = None
 
-            run_realtime_update()
+            run_realtime_update(
+                alert_change_pct=alert_change_pct
+            )
 
             wait_seconds = realtime_interval
 
         elif session == MarketSession.POST_CLOSE:
-
-            current_datetime = now()
 
             daily_due = (
                 current_datetime.time()
@@ -585,8 +611,16 @@ def main():
 
             wait_seconds = realtime_interval
 
+        next_update_time = (
+            current_datetime
+            + timedelta(seconds=wait_seconds)
+        )
+
         print(
-            f"\nWaiting {wait_seconds} seconds..."
+            f"[{timestamp}] "
+            f"Next update will be conducted in "
+            f"{wait_seconds} seconds "
+            f"({next_update_time.strftime('%H:%M:%S')})..."
         )
 
         time.sleep(

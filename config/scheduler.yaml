@@ -2,6 +2,9 @@ scheduler:
   realtime_interval_seconds: 60
   daily_pipeline_time: "14:00"
 
+  # 即時報價警示：|漲跌幅%| >= 此值時，scheduler 輸出會特別標註該股票
+  alert_change_pct: 2.0
+
   # 季報/股利管線觸發日（*MM-DD 萬用格式；財報公佈期限後）
   # Q1: 5/15、Q2: 8/14、Q3: 11/14、Q4: 次年 3/31
   fundamental_triggers:

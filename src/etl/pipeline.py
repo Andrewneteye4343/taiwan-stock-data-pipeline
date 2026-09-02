@@ -32,15 +32,7 @@ def run_daily_pipeline(
     """
 
     print(
-        "========================================"
-    )
-
-    print(
-        "Starting daily stock price pipeline..."
-    )
-
-    print(
-        "========================================"
+        "\nStarting daily stock price pipeline..."
     )
 
     # ----------------------------------------
@@ -94,20 +86,12 @@ def run_daily_pipeline(
     )
 
     print(
-        "\n========================================"
-    )
-
-    print(
-        "Daily stock price pipeline "
+        "\nDaily stock price pipeline "
         "completed successfully."
     )
 
     print(
         f"Processed records: {processed_count}"
-    )
-
-    print(
-        "========================================"
     )
 
     return processed_count

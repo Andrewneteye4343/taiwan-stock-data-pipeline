@@ -6,6 +6,7 @@
 from src.collector.market_data import MarketDataClient
 from src.collector.market_pipeline import collect_stock_data
 from src.config.stock_config import load_stocks
+from src.core.market_time import now as market_now
 from src.core.market_time import today as market_today
 from src.etl.market_transform import prepare_market_data
 from src.etl.pipeline import run_daily_pipeline
@@ -30,59 +31,55 @@ def print_summary(
     Print market data pipeline summary.
     """
 
+    timestamp = market_now().strftime("%Y-%m-%d %H:%M:%S")
+
     print()
     print(
-        "========================================"
-    )
-    print(
-        "TWSE Market Data Pipeline Summary"
-    )
-    print(
-        "========================================"
+        f"[{timestamp}] TWSE Market Data Pipeline Summary"
     )
 
     print(
-        f"Total stocks: {len(stocks)}"
+        f"  Total stocks: {len(stocks)}"
     )
 
     print(
-        f"Successful stocks: "
+        f"  Successful stocks: "
         f"{len(successful_symbols)}"
     )
 
     if no_data_symbols:
 
         print(
-            "No new data stocks: "
+            "  No new data stocks: "
             f"{', '.join(no_data_symbols)}"
         )
 
     else:
 
         print(
-            "No new data stocks: 0"
+            "  No new data stocks: 0"
         )
 
     if failed_symbols:
 
         print(
-            "Failed stocks: "
+            "  Failed stocks: "
             f"{', '.join(failed_symbols)}"
         )
 
     else:
 
         print(
-            "Failed stocks: 0"
+            "  Failed stocks: 0"
         )
 
     print(
-        f"Collected records: "
+        f"  Collected records: "
         f"{collected_count}"
     )
 
     print(
-        f"Processed records: "
+        f"  Processed records: "
         f"{processed_count}"
     )
 
@@ -90,9 +87,7 @@ def print_summary(
         "Pipeline execution completed."
     )
 
-    print(
-        "========================================"
-    )
+    print()
 
 
 def run(
@@ -127,19 +122,14 @@ def run(
         ]
 
         print(
-            "========================================"
-        )
-        print(
+            f"[{market_now().strftime('%Y-%m-%d %H:%M:%S')}] "
             "TWSE Market Data Collection"
         )
         print(
-            f"Trade date: {trade_date}"
+            f"  Trade date: {trade_date}"
         )
         print(
-            f"Configured stocks: {len(stocks)}"
-        )
-        print(
-            "========================================"
+            f"  Configured stocks: {len(stocks)}"
         )
 
         client = MarketDataClient(
